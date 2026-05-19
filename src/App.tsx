@@ -19,6 +19,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 
 import {
+  createDrawingEntry,
   isFileSystemAccessSupported,
   listDrawingFiles,
   pickDrawingDirectory,
@@ -145,6 +146,33 @@ export default function App() {
     },
     [api],
   );
+
+  useEffect(() => {
+    if (!api || !("launchQueue" in window)) {
+      return;
+    }
+
+    window.launchQueue.setConsumer((launchParams) => {
+      const [handle] = launchParams.files ?? [];
+      if (!handle || handle.kind !== "file") {
+        return;
+      }
+
+      void createDrawingEntry(handle)
+        .then((entry) => {
+          setFiles((prev) => {
+            if (prev.some((file) => file.name === entry.name)) {
+              return prev.map((file) => (file.name === entry.name ? entry : file));
+            }
+            return [entry, ...prev];
+          });
+          return loadDrawing(entry);
+        })
+        .catch(() => {
+          setNotice({ kind: "error", message: "无法打开系统传入的文件" });
+        });
+    });
+  }, [api, loadDrawing]);
 
   const saveCurrentFile = useCallback(async () => {
     if (!api || !currentFile) {

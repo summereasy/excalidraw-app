@@ -1,0 +1,27 @@
+{
+  "name": "Excalidraw App",
+  "short_name": "Excalidraw App",
+  "description": "A local-first Excalidraw editor for .excalidraw files.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#191d24",
+  "theme_color": "#191d24",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "application/vnd.excalidraw+json": [".excalidraw"],
+        "application/json": [".excalidraw"]
+      }
+    }
+  ]
+}

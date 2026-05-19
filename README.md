@@ -12,6 +12,7 @@ This app embeds the official `@excalidraw/excalidraw` React component and adds a
 - Create a new drawing and save it as a `.excalidraw` file.
 - Use light, dark, or system theme.
 - Hide the local file UI with `Cmd+B` / `Ctrl+B` when you want a cleaner canvas.
+- Install as a PWA and, where supported by the browser, open `.excalidraw` files through the operating system file handler.
 
 This is a browser app, not a native desktop app. It uses the File System Access API, so the browser will ask for explicit permission before reading a directory or writing a file.
 
@@ -45,6 +46,8 @@ http://localhost:5173/
 
 ## Setup
 
+### Development
+
 Requirements:
 
 - Node.js 18+
@@ -76,6 +79,67 @@ Preview the production build:
 pnpm preview
 ```
 
+### Local Docker Hosting
+
+For day-to-day local use, you do not need to keep `pnpm dev` running. You can build and run the static app with Docker or any compatible container runtime:
+
+```bash
+docker build -t excalidraw-app .
+docker run -d --name excalidraw-app -p 38767:80 excalidraw-app
+```
+
+With Apple's `container` CLI:
+
+```bash
+container build -t excalidraw-app:local .
+container run --rm -d --name excalidraw-app -p 38767:80 excalidraw-app:local
+```
+
+Then open:
+
+```text
+http://127.0.0.1:38767/
+```
+
+The container only serves the app's static files. Local file access still happens in your browser through the File System Access API, so the container does not need access to your drawing folders.
+
+Stop the container:
+
+```bash
+docker stop excalidraw-app
+docker rm excalidraw-app
+```
+
+For Apple's `container` CLI:
+
+```bash
+container stop excalidraw-app
+```
+
+### Install As PWA
+
+The app includes a web app manifest, service worker, and `.excalidraw` file handler declaration.
+
+After serving the production build from a stable local or HTTPS URL, open that URL in Chrome, Edge, or Brave and install it as a PWA:
+
+```text
+Browser menu -> Install Excalidraw App
+```
+
+If your browser supports PWA file handling, you can then try:
+
+```bash
+open -a "Excalidraw App" /path/to/drawing.excalidraw
+```
+
+or set the installed PWA as the default opener in Finder:
+
+```text
+Finder -> select a .excalidraw file -> Cmd+I -> Open with -> Excalidraw App -> Change All
+```
+
+PWA file handling support varies by browser. Chrome and Edge are the most likely to work. Brave may require File System Access API support to be enabled and should be tested on your machine.
+
 ## How To Use
 
 1. Open the app in a supported browser.
@@ -96,7 +160,7 @@ Shortcuts:
 
 - It only sees files from a directory you explicitly choose.
 - It cannot silently read or write arbitrary paths. That is a browser security boundary.
-- Finder double-click support is not implemented.
+- Finder double-click support depends on installed PWA file handling support in your browser.
 - There is no native companion server.
 - Browser support depends on File System Access API availability.
 

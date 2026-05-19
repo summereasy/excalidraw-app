@@ -24,6 +24,7 @@ interface FileSystemWritableFileStream extends WritableStream {
 }
 
 interface Window {
+  launchQueue: LaunchQueue;
   showDirectoryPicker(options?: { mode?: "read" | "readwrite" }): Promise<FileSystemDirectoryHandle>;
   showOpenFilePicker(options?: {
     multiple?: boolean;
@@ -39,4 +40,12 @@ interface Window {
       accept: Record<string, string[]>;
     }>;
   }): Promise<FileSystemFileHandle>;
+}
+
+interface LaunchParams {
+  readonly files?: FileSystemFileHandle[];
+}
+
+interface LaunchQueue {
+  setConsumer(consumer: (launchParams: LaunchParams) => void): void;
 }

@@ -4,6 +4,24 @@ export type DrawingEntry = {
   lastModified: number | null;
 };
 
+export async function createDrawingEntry(
+  handle: FileSystemFileHandle,
+): Promise<DrawingEntry> {
+  let lastModified: number | null = null;
+
+  try {
+    lastModified = (await handle.getFile()).lastModified;
+  } catch {
+    lastModified = null;
+  }
+
+  return {
+    name: handle.name,
+    handle,
+    lastModified,
+  };
+}
+
 export async function pickDrawingDirectory(): Promise<{
   directory: FileSystemDirectoryHandle;
   files: DrawingEntry[];
@@ -25,20 +43,7 @@ export async function listDrawingFiles(
       continue;
     }
 
-    const fileHandle = handle as FileSystemFileHandle;
-    let lastModified: number | null = null;
-
-    try {
-      lastModified = (await fileHandle.getFile()).lastModified;
-    } catch {
-      lastModified = null;
-    }
-
-    files.push({
-      name: fileHandle.name,
-      handle: fileHandle,
-      lastModified,
-    });
+    files.push(await createDrawingEntry(handle as FileSystemFileHandle));
   }
 
   return files.sort((a, b) => a.name.localeCompare(b.name));
