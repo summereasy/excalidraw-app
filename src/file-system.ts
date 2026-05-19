@@ -92,3 +92,54 @@ export function isFileSystemAccessSupported(): boolean {
 function ensureDrawingExtension(name: string): string {
   return name.endsWith(".excalidraw") ? name : `${name}.excalidraw`;
 }
+
+// --- IndexedDB 持久化 directory handle ---
+
+const IDB_DB_NAME = "excalidraw-app";
+const IDB_STORE_NAME = "handles";
+const IDB_KEY = "lastDirectory";
+
+function openIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(IDB_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(IDB_STORE_NAME);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function persistDirectoryHandle(
+  directory: FileSystemDirectoryHandle,
+): Promise<void> {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_NAME, "readwrite");
+    tx.objectStore(IDB_STORE_NAME).put(directory, IDB_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function loadDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_NAME, "readonly");
+    const request = tx.objectStore(IDB_STORE_NAME).get(IDB_KEY);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function queryDirectoryPermission(
+  directory: FileSystemDirectoryHandle,
+): Promise<PermissionState> {
+  return directory.queryPermission({ mode: "readwrite" });
+}
+
+export async function requestDirectoryPermission(
+  directory: FileSystemDirectoryHandle,
+): Promise<PermissionState> {
+  return directory.requestPermission({ mode: "readwrite" });
+}

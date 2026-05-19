@@ -3,6 +3,8 @@
 interface FileSystemHandle {
   readonly kind: "file" | "directory";
   readonly name: string;
+  queryPermission(descriptor: { mode: "read" | "readwrite" }): Promise<PermissionState>;
+  requestPermission(descriptor: { mode: "read" | "readwrite" }): Promise<PermissionState>;
 }
 
 interface FileSystemFileHandle extends FileSystemHandle {

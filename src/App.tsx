@@ -22,8 +22,12 @@ import {
   createDrawingEntry,
   isFileSystemAccessSupported,
   listDrawingFiles,
+  loadDirectoryHandle,
+  persistDirectoryHandle,
   pickDrawingDirectory,
+  queryDirectoryPermission,
   readFileText,
+  requestDirectoryPermission,
   saveTextAsDrawing,
   writeFileText,
 } from "./file-system";
@@ -85,10 +89,29 @@ export default function App() {
       return;
     }
 
-    const nextFiles = await listDrawingFiles(directory);
-    setFiles(nextFiles);
+    try {
+      const nextFiles = await listDrawingFiles(directory);
+      setFiles(nextFiles);
+    } catch {
+      // 权限不足时静默忽略，用户可通过重新授权按钮恢复
+    }
   }, [directory]);
 
+  // 重新授权上次打开的目录（需要用户手势触发）
+  const reauthorizeDirectory = useCallback(async () => {
+    if (!directory) return;
+
+    try {
+      const perm = await requestDirectoryPermission(directory);
+      if (perm === "granted") {
+        await refreshDirectory();
+      }
+    } catch {
+      // 用户拒绝或浏览器阻止
+    }
+  }, [directory, refreshDirectory]);
+
+  // 打开目录后持久化 handle
   const openDirectory = useCallback(async () => {
     setNotice(null);
 
@@ -96,6 +119,7 @@ export default function App() {
       const result = await pickDrawingDirectory();
       setDirectory(result.directory);
       setFiles(result.files);
+      void persistDirectoryHandle(result.directory);
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") {
         setNotice({ kind: "error", message: "无法打开目录" });
@@ -276,6 +300,35 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [currentFile, saveAs, saveCurrentFile]);
 
+  // 启动时尝试恢复上次打开的目录
+  useEffect(() => {
+    if (!supported) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const handle = await loadDirectoryHandle();
+        if (cancelled || !handle) return;
+
+        // 先恢复 handle，再尝试读取文件
+        setDirectory(handle);
+
+        const files = await listDrawingFiles(handle);
+        if (!cancelled) {
+          setFiles(files);
+        }
+      } catch {
+        // 权限不足或 handle 失效，静默忽略
+        // 用户可以通过「重新授权」或「打开目录」按钮手动恢复
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supported]);
+
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, themeMode);
   }, [themeMode]);
@@ -322,6 +375,18 @@ export default function App() {
             <RefreshCw size={16} />
           </button>
         </div>
+
+        {directory && sortedFiles.length === 0 && (
+          <div className="sidebar__actions">
+            <button
+              className="button button--primary"
+              onClick={() => void reauthorizeDirectory()}
+            >
+              <FolderOpen size={16} />
+              重新授权目录
+            </button>
+          </div>
+        )}
 
         {!supported && (
           <div className="notice notice--error">
