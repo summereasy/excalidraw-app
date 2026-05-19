@@ -1,207 +1,142 @@
 # Excalidraw App
 
-A local-first Excalidraw editor for people who keep `.excalidraw` files in normal folders.
+一个本地优先的 Excalidraw 编辑器，让 `.excalidraw` 文件的打开、浏览、保存像本地文件一样顺滑。
 
-This app embeds the official `@excalidraw/excalidraw` React component and adds a small file-browser shell around it. It is meant for opening a local folder, switching between drawings in that folder, and saving changes back to the same `.excalidraw` file with `Cmd+S`.
+## 为什么需要这个项目
 
-## What This Is For
+Excalidraw 官方网站是一个很棒的画图工具，但如果你日常维护大量 `.excalidraw` 文件，会发现文件操作有很多摩擦：
 
-- Browse `.excalidraw` files from a local directory.
-- Open a drawing without using Excalidraw's file picker every time.
-- Save changes back to the current local file.
-- Create a new drawing and save it as a `.excalidraw` file.
-- Use light, dark, or system theme.
-- Hide the local file UI with `Cmd+B` / `Ctrl+B` when you want a cleaner canvas.
-- Install as a PWA and, where supported by the browser, open `.excalidraw` files through the operating system file handler.
+- 每次打开都要手动选择文件
+- 保存需要手动导出下载
+- 没有文件列表，无法快速切换
+- 无法像本地 app 一样双击 `.excalidraw` 文件直接打开
 
-This is a browser app, not a native desktop app. It uses the File System Access API, so the browser will ask for explicit permission before reading a directory or writing a file.
+Excalidraw App 直接内嵌了官方 `@excalidraw/excalidraw` 组件，并围绕它加了一层本地文件操作 shell，核心能力：
 
-## Browser Support
+- 📂 打开本地目录，侧边栏浏览所有 `.excalidraw` 文件
+- 💾 `Cmd+S` 直接保存回原文件
+- 🎨 支持浅色/深色/跟随系统主题
+- 📱 安装为 PWA 后可以像原生 App 一样双击打开 `.excalidraw` 文件
 
-Use a Chromium browser with File System Access API support.
+## 安装与使用
 
-Known working setup:
+### 推荐: Docker + PWA (最顺滑的体验)
 
-- Chrome
-- Edge
-- Brave, after enabling the File System Access API flag
+这是日常使用最推荐的方式，只需要两步：
 
-For Brave:
-
-1. Open `brave://flags/#file-system-access-api`.
-2. Set `File System Access API` to `Enabled`.
-3. Restart Brave.
-
-Use the local dev URL shown by Vite, usually:
-
-```text
-http://127.0.0.1:5173/
-```
-
-or:
-
-```text
-http://localhost:5173/
-```
-
-## Setup
-
-### Development
-
-Requirements:
-
-- Node.js 18+
-- pnpm
-
-Install dependencies:
-
-```bash
-pnpm install
-```
-
-Start the development server:
-
-```bash
-pnpm dev
-```
-
-Open the printed local URL in your browser.
-
-Build for production:
-
-```bash
-pnpm build
-```
-
-Preview the production build:
-
-```bash
-pnpm preview
-```
-
-### Local Docker Hosting
-
-For day-to-day local use, you do not need to keep `pnpm dev` running. The intended user flow is to run a prebuilt image and leave it running locally:
+**第一步: 用 Docker 起本地服务**
 
 ```bash
 docker pull ghcr.io/summereasy/excalidraw-app:latest
 docker run -d --name excalidraw-app -p 38767:80 ghcr.io/summereasy/excalidraw-app:latest
 ```
 
-With Apple's `container` CLI, after the image exists locally:
+用 Apple Containers:
 
 ```bash
 container run --rm -d --name excalidraw-app -p 38767:80 excalidraw-app:latest
 ```
 
-Then open:
+然后打开 http://127.0.0.1:38767/ 。
 
-```text
-http://127.0.0.1:38767/
-```
+> 容器只提供静态文件服务，文件读写仍然通过浏览器的 File System Access API 在本地完成，容器不需要访问你的文件。
 
-The container only serves the app's static files. Local file access still happens in your browser through the File System Access API, so the container does not need access to your drawing folders.
+**第二步: 安装为 PWA**
 
-Stop the container:
+在 Chrome / Edge / Brave 中打开上面的地址，然后：
+
+1. 浏览器菜单 → **Install Excalidraw App**
+2. 安装完成后，在 macOS 中将 `.excalidraw` 文件的默认打开方式指向安装的 App:
+   - Finder 中右键一个 `.excalidraw` 文件 → 显示简介 → 打开方式 → 选择 Excalidraw App → 全部更改
+
+之后双击任意 `.excalidraw` 文件就会直接打开编辑，不再需要手动导入导出。
+
+停止服务:
 
 ```bash
-docker stop excalidraw-app
-docker rm excalidraw-app
-```
-
-For Apple's `container` CLI:
-
-```bash
+docker stop excalidraw-app && docker rm excalidraw-app
+# Apple Containers:
 container stop excalidraw-app
 ```
 
-### Build A Local Image
+### 开发环境运行
 
-For development, use Vite first:
+适合想修改代码或调试的场景。
+
+依赖: Node.js 18+, pnpm
 
 ```bash
+pnpm install
 pnpm dev
 ```
 
-When you want to package the current app as a local image, build the web app on the host and then build the runtime image:
+浏览器打开打印出来的本地地址 (通常 http://127.0.0.1:5173/)。
+
+构建生产版本:
+
+```bash
+pnpm build
+pnpm preview   # 本地预览生产构建
+```
+
+### Docker 自行构建
+
+适合想自己打镜像部署的场景。
 
 ```bash
 pnpm build
 container build -t excalidraw-app:latest .
-```
-
-or:
-
-```bash
+# 或:
 pnpm image:build
 ```
 
-The container build is intentionally runtime-only. It copies the already-built `dist/` directory into nginx and does not install Node, pnpm, or npm packages inside the image build.
+镜像只包含 `dist/` + nginx，不含 Node 构建环境。
 
-If you build locally from the Dockerfile, your container runtime may still keep the runtime base image, such as `nginx:1.27-alpine`, in its image store as build cache. A user who pulls a prebuilt `excalidraw-app:latest` image does not need the Node build image.
+### 部署
 
-### Install As PWA
+这是一个纯静态 SPA，构建产物在 `dist/` 目录。扔到任何静态文件服务器 (nginx, Caddy, Vercel, Netlify...) 即可。唯一要求是 HTTPS (PWA 和 File System Access API 需要)，本地 `127.0.0.1` 是例外，不需要 HTTPS。
 
-The app includes a web app manifest, service worker, and `.excalidraw` file handler declaration.
+## 快捷键
 
-After serving the production build from a stable local or HTTPS URL, open that URL in Chrome, Edge, or Brave and install it as a PWA:
-
-```text
-Browser menu -> Install Excalidraw App
-```
-
-If your browser supports PWA file handling, you can then try:
-
-```bash
-open -a "Excalidraw App" /path/to/drawing.excalidraw
-```
-
-or set the installed PWA as the default opener in Finder:
-
-```text
-Finder -> select a .excalidraw file -> Cmd+I -> Open with -> Excalidraw App -> Change All
-```
-
-PWA file handling support varies by browser. Chrome and Edge are the most likely to work. Brave may require File System Access API support to be enabled and should be tested on your machine.
-
-## How To Use
-
-1. Open the app in a supported browser.
-2. Click `打开目录`.
-3. Choose a folder that contains `.excalidraw` files.
-4. Click a file in the sidebar to load it into the canvas.
-5. Edit the drawing.
-6. Press `Cmd+S` / `Ctrl+S` or click `保存` to write back to the current file.
-
-Shortcuts:
-
-| Shortcut | Action |
+| 快捷键 | 功能 |
 | --- | --- |
-| `Cmd+S` / `Ctrl+S` | Save the current drawing |
-| `Cmd+B` / `Ctrl+B` | Toggle the sidebar and top bar |
+| `Cmd+S` / `Ctrl+S` | 保存当前文件 |
+| `Cmd+B` / `Ctrl+B` | 隐藏/显示侧边栏和顶栏 |
 
-## Current Limits
+## 注意事项
 
-- It only sees files from a directory you explicitly choose.
-- It cannot silently read or write arbitrary paths. That is a browser security boundary.
-- Finder double-click support depends on installed PWA file handling support in your browser.
-- There is no native companion server.
-- Browser support depends on File System Access API availability.
+### 浏览器要求
 
-## Why Not Just Use The Excalidraw Website?
+需要使用基于 Chromium 且支持 [File System Access API](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access) 的浏览器。
 
-The official Excalidraw website is excellent for manual open/export flows, but it does not expose a stable external API for a browser extension to load, read, and save the current scene as a local file.
+已验证可用的浏览器:
 
-This app owns the Excalidraw component directly, so it can use the official component API for loading and serializing drawings while relying on the browser's File System Access API for local file handles.
+- ✅ Chrome
+- ✅ Edge
+- ⚠️ Brave (需要手动开启，见下方)
 
-## Thanks
+### Brave 需要手动开启 File System Access API
 
-This project is built on top of the official Excalidraw project and its React package:
+Brave 默认禁用了 File System Access API，不开启的话无法使用本应用。
+
+1. 地址栏输入 `brave://flags/#file-system-access-api`
+2. 将 **File System Access API** 设为 **Enabled**
+3. 重启 Brave
+
+### 其他限制
+
+- 只能访问你主动选择的目录，无法静默读写任意路径 (浏览器安全边界)
+- PWA 文件双击打开的支持依赖浏览器的 file handler 能力，Chrome 和 Edge 支持最好
+- 没有后端服务器，所有文件操作都在浏览器本地完成
+
+## 致谢
+
+基于官方 Excalidraw 项目构建:
 
 - https://github.com/excalidraw/excalidraw
 - https://www.npmjs.com/package/@excalidraw/excalidraw
 
-Thanks to the Excalidraw maintainers and contributors for building and maintaining a great drawing tool and making the embeddable package available.
+感谢 Excalidraw 团队维护这个优秀的绘图工具并提供可嵌入的 React 组件。
 
 ## License
 
