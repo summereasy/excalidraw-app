@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'Dockerfile'
+      - 'nginx.conf'
+      - '.github/workflows/publish-image.yml'
   workflow_dispatch:
 
 permissions:
