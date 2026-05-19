@@ -81,18 +81,17 @@ pnpm preview
 
 ### Local Docker Hosting
 
-For day-to-day local use, you do not need to keep `pnpm dev` running. You can build and run the static app with Docker or any compatible container runtime:
+For day-to-day local use, you do not need to keep `pnpm dev` running. The intended user flow is to run a prebuilt image and leave it running locally:
 
 ```bash
-docker build -t excalidraw-app .
-docker run -d --name excalidraw-app -p 38767:80 excalidraw-app
+docker pull ghcr.io/summereasy/excalidraw-app:latest
+docker run -d --name excalidraw-app -p 38767:80 ghcr.io/summereasy/excalidraw-app:latest
 ```
 
-With Apple's `container` CLI:
+With Apple's `container` CLI, after the image exists locally:
 
 ```bash
-container build -t excalidraw-app:local .
-container run --rm -d --name excalidraw-app -p 38767:80 excalidraw-app:local
+container run --rm -d --name excalidraw-app -p 38767:80 excalidraw-app:latest
 ```
 
 Then open:
@@ -115,6 +114,31 @@ For Apple's `container` CLI:
 ```bash
 container stop excalidraw-app
 ```
+
+### Build A Local Image
+
+For development, use Vite first:
+
+```bash
+pnpm dev
+```
+
+When you want to package the current app as a local image, build the web app on the host and then build the runtime image:
+
+```bash
+pnpm build
+container build -t excalidraw-app:latest .
+```
+
+or:
+
+```bash
+pnpm image:build
+```
+
+The container build is intentionally runtime-only. It copies the already-built `dist/` directory into nginx and does not install Node, pnpm, or npm packages inside the image build.
+
+If you build locally from the Dockerfile, your container runtime may still keep the runtime base image, such as `nginx:1.27-alpine`, in its image store as build cache. A user who pulls a prebuilt `excalidraw-app:latest` image does not need the Node build image.
 
 ### Install As PWA
 
