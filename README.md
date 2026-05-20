@@ -1,57 +1,60 @@
 # Excalidraw App
 
-一个本地优先的 Excalidraw 编辑器，让 `.excalidraw` 文件的打开、浏览、保存像本地文件一样顺滑。
+**[简体中文](./README_cn.md)**
 
-## 为什么需要这个项目
+A local-first Excalidraw editor that makes opening, browsing, and saving `.excalidraw` files as smooth as working with local files.
 
-Excalidraw 官方网站是一个很棒的画图工具，但如果你日常维护大量 `.excalidraw` 文件，会发现文件操作有很多摩擦：
+## Why This Project
 
-- 每次打开都要手动选择文件
-- 保存需要手动导出下载
-- 没有文件列表，无法快速切换
-- 无法像本地 app 一样双击 `.excalidraw` 文件直接打开
+The official Excalidraw website is a great drawing tool, but if you maintain a large number of `.excalidraw` files daily, you'll find a lot of friction in file operations:
 
-Excalidraw App 直接内嵌了官方 `@excalidraw/excalidraw` 组件，并围绕它加了一层本地文件操作 shell，核心能力：
+- You have to manually select a file every time you open one
+- Saving requires manual export/download
+- There's no file list for quick switching
+- You can't double-click a `.excalidraw` file to open it like a native app
 
-- 📂 打开本地目录，侧边栏浏览所有 `.excalidraw` 文件
-- 💾 `Cmd+S` 直接保存回原文件
-- 🎨 支持浅色/深色/跟随系统主题
-- 📱 安装为 PWA 后可以像原生 App 一样双击打开 `.excalidraw` 文件
+Excalidraw App embeds the official `@excalidraw/excalidraw` component and wraps it with a local file operation shell. Core features:
 
-## 安装与使用
+- 📂 Open a local directory and browse all `.excalidraw` files in a sidebar
+- 💾 `Cmd+S` to save directly back to the original file
+- 🎨 Light/Dark/System theme support
+- 🌐 English & 简体中文 UI (toggle in topbar)
+- 📱 Install as PWA and double-click `.excalidraw` files to open them natively
 
-### 推荐: Docker + PWA (最顺滑的体验)
+## Installation & Usage
 
-这是日常使用最推荐的方式，只需要两步：
+### Recommended: Docker + PWA (smoothest experience)
 
-**第一步: 用 Docker 起本地服务**
+This is the recommended way for daily use. Just two steps:
+
+**Step 1: Start a local server with Docker**
 
 ```bash
 docker pull ghcr.io/summereasy/excalidraw-app:latest
 docker run -d --name excalidraw-app -p 38767:80 ghcr.io/summereasy/excalidraw-app:latest
 ```
 
-用 Apple Containers:
+Using Apple Containers:
 
 ```bash
 container run --rm -d --name excalidraw-app -p 38767:80 excalidraw-app:latest
 ```
 
-然后打开 http://127.0.0.1:38767/ 。
+Then open http://127.0.0.1:38767/ .
 
-> 容器只提供静态文件服务，文件读写仍然通过浏览器的 File System Access API 在本地完成，容器不需要访问你的文件。
+> The container only serves static files. File read/write is done locally through the browser's File System Access API — the container never accesses your files.
 
-**第二步: 安装为 PWA**
+**Step 2: Install as PWA**
 
-在 Chrome / Edge / Brave 中打开上面的地址，然后：
+Open the address above in Chrome / Edge / Brave, then:
 
-1. 浏览器菜单 → **Install Excalidraw App**
-2. 安装完成后，在 macOS 中将 `.excalidraw` 文件的默认打开方式指向安装的 App:
-   - Finder 中右键一个 `.excalidraw` 文件 → 显示简介 → 打开方式 → 选择 Excalidraw App → 全部更改
+1. Browser menu → **Install Excalidraw App**
+2. After installation, set the installed app as the default handler for `.excalidraw` files on macOS:
+   - Right-click a `.excalidraw` file in Finder → Get Info → Open With → select Excalidraw App → Change All
 
-之后双击任意 `.excalidraw` 文件就会直接打开编辑，不再需要手动导入导出。
+After that, double-clicking any `.excalidraw` file will open it directly — no more manual import/export.
 
-停止服务:
+To stop the service:
 
 ```bash
 docker stop excalidraw-app && docker rm excalidraw-app
@@ -59,84 +62,84 @@ docker stop excalidraw-app && docker rm excalidraw-app
 container stop excalidraw-app
 ```
 
-### 开发环境运行
+### Development
 
-适合想修改代码或调试的场景。
+For hacking on the code or debugging.
 
-依赖: Node.js 18+, pnpm
+Requirements: Node.js 18+, pnpm
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-浏览器打开打印出来的本地地址 (通常 http://127.0.0.1:5173/)。
+Open the printed local address in your browser (usually http://127.0.0.1:5173/).
 
-构建生产版本:
+Build for production:
 
 ```bash
 pnpm build
-pnpm preview   # 本地预览生产构建
+pnpm preview   # preview production build locally
 ```
 
-### Docker 自行构建
+### Build Docker Image
 
-适合想自己打镜像部署的场景。
+For building and deploying your own image.
 
 ```bash
 pnpm build
 container build -t excalidraw-app:latest .
-# 或:
+# or:
 pnpm image:build
 ```
 
-镜像只包含 `dist/` + nginx，不含 Node 构建环境。
+The image only contains `dist/` + nginx — no Node.js build environment.
 
-### 部署
+### Deployment
 
-这是一个纯静态 SPA，构建产物在 `dist/` 目录。扔到任何静态文件服务器 (nginx, Caddy, Vercel, Netlify...) 即可。唯一要求是 HTTPS (PWA 和 File System Access API 需要)，本地 `127.0.0.1` 是例外，不需要 HTTPS。
+This is a purely static SPA. Build output goes to `dist/`. Drop it onto any static file server (nginx, Caddy, Vercel, Netlify...). The only requirement is HTTPS (needed for PWA and File System Access API). Local `127.0.0.1` is an exception — no HTTPS needed.
 
-## 快捷键
+## Keyboard Shortcuts
 
-| 快捷键 | 功能 |
+| Shortcut | Action |
 | --- | --- |
-| `Cmd+S` / `Ctrl+S` | 保存当前文件 |
-| `Cmd+B` / `Ctrl+B` | 隐藏/显示侧边栏和顶栏 |
+| `Cmd+S` / `Ctrl+S` | Save current file |
+| `Cmd+B` / `Ctrl+B` | Toggle sidebar & topbar |
 
-## 注意事项
+## Notes
 
-### 浏览器要求
+### Browser Requirements
 
-需要使用基于 Chromium 且支持 [File System Access API](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access) 的浏览器。
+Requires a Chromium-based browser with [File System Access API](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access) support.
 
-已验证可用的浏览器:
+Verified browsers:
 
 - ✅ Chrome
 - ✅ Edge
-- ⚠️ Brave (需要手动开启，见下方)
+- ⚠️ Brave (requires manual enablement, see below)
 
-### Brave 需要手动开启 File System Access API
+### Brave: Enable File System Access API
 
-Brave 默认禁用了 File System Access API，不开启的话无法使用本应用。
+Brave disables the File System Access API by default. You need to enable it manually.
 
-1. 地址栏输入 `brave://flags/#file-system-access-api`
-2. 将 **File System Access API** 设为 **Enabled**
-3. 重启 Brave
+1. Navigate to `brave://flags/#file-system-access-api`
+2. Set **File System Access API** to **Enabled**
+3. Restart Brave
 
-### 其他限制
+### Other Limitations
 
-- 只能访问你主动选择的目录，无法静默读写任意路径 (浏览器安全边界)
-- PWA 文件双击打开的支持依赖浏览器的 file handler 能力，Chrome 和 Edge 支持最好
-- 没有后端服务器，所有文件操作都在浏览器本地完成
+- Can only access directories you explicitly select — no silent read/write of arbitrary paths (browser security boundary)
+- PWA file double-click support depends on the browser's file handler capability — Chrome and Edge have the best support
+- There is no backend server — all file operations happen locally in the browser
 
-## 致谢
+## Acknowledgements
 
-基于官方 Excalidraw 项目构建:
+Built on the official Excalidraw project:
 
 - https://github.com/excalidraw/excalidraw
 - https://www.npmjs.com/package/@excalidraw/excalidraw
 
-感谢 Excalidraw 团队维护这个优秀的绘图工具并提供可嵌入的 React 组件。
+Thanks to the Excalidraw team for maintaining this excellent drawing tool and providing the embeddable React component.
 
 ## License
 
