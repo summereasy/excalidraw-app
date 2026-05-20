@@ -21,25 +21,28 @@ button {
 }
 
 .workspace {
-  --app-bg: #edf1f5;
-  --panel-bg: #f8fafc;
-  --panel-border: #d7dee8;
-  --panel-border-soft: #e1e7ef;
+  --app-bg: #ffffff;
+  --panel-bg: #ffffff;
+  --panel-border: #f1f0ff;
+  --panel-border-soft: #f1f0ff;
   --toolbar-bg: #ffffff;
-  --text-strong: #152033;
-  --text-main: #2f3d4f;
-  --text-muted: #718096;
-  --button-bg: #ffffff;
-  --button-hover-bg: #f6f9fc;
-  --button-border: #cbd5e1;
-  --button-hover-border: #8aa4c1;
-  --item-hover-bg: #eef4fb;
-  --item-active-bg: #e7f0fb;
-  --item-active-border: #a9c3e5;
-  --empty-border: #cbd5e1;
+  --text-strong: #1b1b1f;
+  --text-main: #1b1b1f;
+  --text-muted: #767680;
+  --button-bg: #f2f2f7;
+  --button-hover-bg: #f1f0ff;
+  --button-border: #f1f0ff;
+  --button-hover-border: #e0dfff;
+  --item-hover-bg: #f1f0ff;
+  --item-active-bg: #e0dfff;
+  --item-active-border: #e0dfff;
+  --item-active-color: #030064;
+  --empty-border: #c5c5d0;
   --canvas-bg: #ffffff;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
+  --primary: #6965db;
+  --primary-hover: #5753d0;
+  --primary-active-bg: #e0dfff;
+  --primary-active-text: #030064;
   --app-topbar-height: 52px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -55,25 +58,28 @@ button {
 }
 
 .workspace[data-theme="dark"] {
-  --app-bg: #191d24;
-  --panel-bg: #191d24;
-  --panel-border: #3b4252;
-  --panel-border-soft: #3b4252;
-  --toolbar-bg: #191d24;
-  --text-strong: #d8dee9;
-  --text-main: #bbc3d4;
-  --text-muted: #97a4bc;
-  --button-bg: #2e3440;
-  --button-hover-bg: #3b4252;
-  --button-border: #3b4252;
-  --button-hover-border: #4c566a;
-  --item-hover-bg: #222630;
-  --item-active-bg: #2e3440;
-  --item-active-border: #3b4252;
-  --empty-border: #3b4252;
-  --canvas-bg: #242933;
-  --primary: #5e81ac;
-  --primary-hover: #81a1c1;
+  --app-bg: #121212;
+  --panel-bg: #232329;
+  --panel-border: #34343b;
+  --panel-border-soft: #34343b;
+  --toolbar-bg: #232329;
+  --text-strong: #e3e3e8;
+  --text-main: #e3e3e8;
+  --text-muted: #8e8d9c;
+  --button-bg: #313039;
+  --button-hover-bg: #363541;
+  --button-border: #34343b;
+  --button-hover-border: #46464f;
+  --item-hover-bg: #363541;
+  --item-active-bg: #403e6a;
+  --item-active-border: #403e6a;
+  --item-active-color: #e0dfff;
+  --empty-border: #46464f;
+  --canvas-bg: #121212;
+  --primary: #a8a5ff;
+  --primary-hover: #bbb8ff;
+  --primary-active-bg: #403e6a;
+  --primary-active-text: #e0dfff;
   color: var(--text-main);
 }
 
@@ -176,14 +182,14 @@ button {
 }
 
 .button--primary {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #ffffff;
+  border-color: var(--primary-active-bg);
+  background: var(--primary-active-bg);
+  color: var(--primary-active-text);
 }
 
 .button--primary:hover:not(:disabled) {
-  border-color: var(--primary-hover);
-  background: var(--primary-hover);
+  border-color: var(--primary);
+  background: var(--primary-active-bg);
 }
 
 .button--icon {
@@ -295,6 +301,7 @@ button {
 .file-tree__item--active {
   border-color: var(--item-active-border);
   background: var(--item-active-bg);
+  color: var(--item-active-color);
 }
 
 .file-tree__item-name {
@@ -443,8 +450,8 @@ button {
 
 .theme-toggle button.active,
 .lang-toggle button.active {
-  background: var(--primary);
-  color: #ffffff;
+  background: var(--primary-active-bg);
+  color: var(--primary-active-text);
 }
 
 .lang-toggle {
@@ -519,5 +526,5 @@ button {
 .canvas-wrap .excalidraw {
   --color-primary: var(--primary);
   --color-primary-darker: var(--primary-hover);
-  --color-primary-darkest: #88c0d0;
+  --color-primary-darkest: var(--primary-hover);
 }
