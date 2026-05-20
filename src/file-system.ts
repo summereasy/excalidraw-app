@@ -96,14 +96,21 @@ function ensureDrawingExtension(name: string): string {
 // --- IndexedDB 持久化 directory handle ---
 
 const IDB_DB_NAME = "excalidraw-app";
+const IDB_DB_VERSION = 2;
 const IDB_STORE_NAME = "handles";
 const IDB_KEY = "lastDirectory";
 
-function openIDB(): Promise<IDBDatabase> {
+export function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(IDB_DB_NAME, 1);
+    const request = indexedDB.open(IDB_DB_NAME, IDB_DB_VERSION);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore(IDB_STORE_NAME);
+      const db = request.result;
+      if (!db.objectStoreNames.contains("handles")) {
+        db.createObjectStore("handles");
+      }
+      if (!db.objectStoreNames.contains("draft")) {
+        db.createObjectStore("draft");
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);

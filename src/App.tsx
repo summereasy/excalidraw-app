@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Check,
@@ -14,6 +14,7 @@ import {
   serializeAsJSON,
 } from "@excalidraw/excalidraw";
 import type {
+  AppState,
   BinaryFiles,
   ExcalidrawImperativeAPI,
 } from "@excalidraw/excalidraw/types";
@@ -32,6 +33,12 @@ import {
   writeFileText,
 } from "./file-system";
 import type { DrawingEntry } from "./file-system";
+import {
+  clearDraftScene,
+  loadDraftScene,
+  saveDraftScene,
+} from "./scene-storage";
+import type { DraftScene } from "./scene-storage";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 type ThemeMode = "light" | "dark" | "system";
@@ -61,6 +68,14 @@ export default function App() {
   );
   const [chromeHidden, setChromeHidden] = useState(false);
 
+  // 启动时从 IndexedDB 加载 draft scene 作为 initialData
+  const [initialData, setInitialData] = useState<
+    Promise<DraftScene | null> | null
+  >(() => loadDraftScene());
+
+  // 用 ref 跟踪 currentFile，避免 onChange 闭包里拿到旧值
+  const currentFileRef = useRef<DrawingEntry | null>(null);
+
   const supported = isFileSystemAccessSupported();
   const resolvedTheme = themeMode === "system" ? systemTheme : themeMode;
 
@@ -84,6 +99,47 @@ export default function App() {
     );
   }, [api]);
 
+  // --- Draft scene 持久化 ---
+
+  const persistDraft = useCallback(
+    (
+      elements: readonly unknown[],
+      appState: AppState,
+      files: BinaryFiles,
+    ) => {
+      const file = currentFileRef.current;
+      void saveDraftScene({
+        elements,
+        appState,
+        files,
+        currentFileHandle: file?.handle ?? null,
+        currentFileName: file?.name ?? null,
+      });
+    },
+    [],
+  );
+
+  // onChange 防抖：避免每次微小变化都写 IndexedDB
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const schedulePersistDraft = useCallback(
+    (
+      elements: readonly unknown[],
+      appState: AppState,
+      files: BinaryFiles,
+    ) => {
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current);
+      }
+      draftTimerRef.current = setTimeout(() => {
+        persistDraft(elements, appState, files);
+      }, 300);
+    },
+    [persistDraft],
+  );
+
+  // --- 目录操作 ---
+
   const refreshDirectory = useCallback(async () => {
     if (!directory) {
       return;
@@ -97,7 +153,6 @@ export default function App() {
     }
   }, [directory]);
 
-  // 重新授权上次打开的目录（需要用户手势触发）
   const reauthorizeDirectory = useCallback(async () => {
     if (!directory) return;
 
@@ -111,7 +166,6 @@ export default function App() {
     }
   }, [directory, refreshDirectory]);
 
-  // 打开目录后持久化 handle
   const openDirectory = useCallback(async () => {
     setNotice(null);
 
@@ -126,6 +180,8 @@ export default function App() {
       }
     }
   }, []);
+
+  // --- 文件操作 ---
 
   const loadDrawing = useCallback(
     async (entry: DrawingEntry) => {
@@ -161,14 +217,22 @@ export default function App() {
         });
         api.history.clear();
 
+        currentFileRef.current = entry;
         setCurrentFile(entry);
         setDirty(false);
         setSaveState("idle");
+
+        // 从文件加载后立即更新 draft
+        persistDraft(
+          api.getSceneElementsIncludingDeleted(),
+          api.getAppState(),
+          api.getFiles(),
+        );
       } catch {
         setNotice({ kind: "error", message: `无法打开 ${entry.name}` });
       }
     },
-    [api],
+    [api, persistDraft],
   );
 
   useEffect(() => {
@@ -210,12 +274,20 @@ export default function App() {
       await writeFileText(currentFile.handle, serializeCurrentScene());
       setDirty(false);
       setSaveState("saved");
+
+      // 保存后更新 draft（标记为干净状态）
+      persistDraft(
+        api.getSceneElementsIncludingDeleted(),
+        api.getAppState(),
+        api.getFiles(),
+      );
+
       window.setTimeout(() => setSaveState("idle"), 1400);
     } catch {
       setSaveState("error");
       setNotice({ kind: "error", message: "保存失败，请检查文件写入权限" });
     }
-  }, [api, currentFile, serializeCurrentScene]);
+  }, [api, currentFile, serializeCurrentScene, persistDraft]);
 
   const saveAs = useCallback(async () => {
     if (!api) {
@@ -233,6 +305,7 @@ export default function App() {
         lastModified: (await handle.getFile()).lastModified,
       };
 
+      currentFileRef.current = entry;
       setCurrentFile(entry);
       setFiles((prev) => {
         if (prev.some((file) => file.name === entry.name)) {
@@ -242,6 +315,14 @@ export default function App() {
       });
       setDirty(false);
       setSaveState("saved");
+
+      // 另存为后更新 draft
+      persistDraft(
+        api.getSceneElementsIncludingDeleted(),
+        api.getAppState(),
+        api.getFiles(),
+      );
+
       window.setTimeout(() => setSaveState("idle"), 1400);
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") {
@@ -251,7 +332,7 @@ export default function App() {
         setSaveState("idle");
       }
     }
-  }, [api, currentTitle, serializeCurrentScene]);
+  }, [api, currentTitle, serializeCurrentScene, persistDraft]);
 
   const newDrawing = useCallback(() => {
     if (!api) {
@@ -265,11 +346,17 @@ export default function App() {
     });
     api.history.clear();
 
+    currentFileRef.current = null;
     setCurrentFile(null);
     setDirty(false);
     setSaveState("idle");
     setNotice(null);
+
+    // 新建画布时清除 draft
+    void clearDraftScene();
   }, [api]);
+
+  // --- 键盘快捷键 ---
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -300,7 +387,8 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [currentFile, saveAs, saveCurrentFile]);
 
-  // 启动时尝试恢复上次打开的目录
+  // --- 启动恢复 ---
+
   useEffect(() => {
     if (!supported) return;
 
@@ -311,16 +399,14 @@ export default function App() {
         const handle = await loadDirectoryHandle();
         if (cancelled || !handle) return;
 
-        // 先恢复 handle，再尝试读取文件
         setDirectory(handle);
 
-        const files = await listDrawingFiles(handle);
+        const dirFiles = await listDrawingFiles(handle);
         if (!cancelled) {
-          setFiles(files);
+          setFiles(dirFiles);
         }
       } catch {
         // 权限不足或 handle 失效，静默忽略
-        // 用户可以通过「重新授权」或「打开目录」按钮手动恢复
       }
     })();
 
@@ -328,6 +414,35 @@ export default function App() {
       cancelled = true;
     };
   }, [supported]);
+
+  // 从 draft 恢复 currentFile（Excalidraw 初始化完成后）
+  useEffect(() => {
+    if (!api) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const draft = await loadDraftScene();
+        if (cancelled || !draft) return;
+
+        // 恢复 currentFile（如果 draft 里有 handle）
+        if (draft.currentFileHandle) {
+          const entry = await createDrawingEntry(draft.currentFileHandle);
+          currentFileRef.current = entry;
+          setCurrentFile(entry);
+        }
+      } catch {
+        // handle 失效或权限不足，静默忽略
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  // --- Theme ---
 
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, themeMode);
@@ -487,9 +602,23 @@ export default function App() {
         <section className="canvas-wrap">
           <Excalidraw
             excalidrawAPI={setApi}
-            onChange={() => {
+            initialData={
+              initialData
+                ? initialData.then((draft) =>
+                    draft
+                      ? {
+                          elements: draft.elements as any,
+                          appState: draft.appState,
+                          files: draft.files,
+                        }
+                      : null,
+                  )
+                : undefined
+            }
+            onChange={(elements, appState, files) => {
               if (api) {
                 setDirty(true);
+                schedulePersistDraft(elements, appState, files);
               }
             }}
             name={currentTitle.replace(/\.excalidraw$/, "")}
