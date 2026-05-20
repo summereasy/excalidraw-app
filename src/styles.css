@@ -40,6 +40,7 @@ button {
   --canvas-bg: #ffffff;
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
+  --app-topbar-height: 52px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   width: 100vw;
@@ -99,31 +100,50 @@ button {
 }
 
 .sidebar__header {
-  padding: 18px 18px 14px;
+  display: flex;
+  height: var(--app-topbar-height);
+  flex: 0 0 var(--app-topbar-height);
+  align-items: center;
+  padding: 0 18px;
   border-bottom: 1px solid var(--panel-border-soft);
 }
 
 .sidebar__header h1 {
   margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   color: var(--text-strong);
   font-size: 17px;
   font-weight: 760;
 }
 
-.sidebar__header p {
-  margin: 4px 0 0;
-  overflow: hidden;
+.sidebar__hint {
   color: var(--text-muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.55;
 }
 
 .sidebar__actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 14px;
+  padding: 10px 14px;
+}
+
+.sidebar__actions > .button--primary {
+  flex: 1;
+}
+
+.sidebar__dir-name {
+  flex: 1 1 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .button {
@@ -177,21 +197,84 @@ button {
   min-height: 0;
 }
 
-.file-list {
+.file-tree {
   min-height: 0;
   flex: 1;
   overflow: auto;
   padding: 4px 10px 14px;
 }
 
-.file-list__item {
-  display: grid;
+.file-tree__list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.file-tree__list .file-tree__list {
+  position: relative;
+  padding-left: 10px;
+  margin-left: 8px;
+}
+
+.file-tree__list .file-tree__list::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 8px;
+  left: 0;
+  width: 1px;
+  background: var(--panel-border);
+}
+
+.file-tree__dir {
+  margin: 1px 0;
+}
+
+.file-tree__dir-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
-  min-height: 46px;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 3px;
-  margin: 2px 0;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  transition: background 120ms, color 120ms;
+}
+
+.file-tree__dir-toggle:hover {
+  background: var(--item-hover-bg);
+  color: var(--text-main);
+}
+
+.file-tree__caret {
+  flex: 0 0 auto;
+  transition: transform 120ms;
+}
+
+.file-tree__caret--open {
+  transform: rotate(90deg);
+}
+
+.file-tree__dir-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  margin: 1px 0;
+  padding: 6px 8px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
@@ -200,16 +283,22 @@ button {
   text-align: left;
 }
 
-.file-list__item:hover {
+.file-tree__icon {
+  flex: 0 0 auto;
+  opacity: 0.5;
+}
+
+.file-tree__item:hover {
   background: var(--item-hover-bg);
 }
 
-.file-list__item--active {
+.file-tree__item--active {
   border-color: var(--item-active-border);
   background: var(--item-active-bg);
 }
 
-.file-list__item span {
+.file-tree__item-name {
+  min-width: 0;
   overflow: hidden;
   font-size: 13px;
   font-weight: 640;
@@ -217,10 +306,6 @@ button {
   white-space: nowrap;
 }
 
-.file-list__item time {
-  color: var(--text-muted);
-  font-size: 11px;
-}
 
 .empty-state {
   margin: 8px 4px;
@@ -243,10 +328,11 @@ button {
 
 .topbar {
   display: flex;
+  height: var(--app-topbar-height);
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  max-height: 52px;
+  max-height: var(--app-topbar-height);
   border-bottom: 1px solid var(--panel-border);
   background: var(--toolbar-bg);
   padding: 8px 12px 8px 16px;
