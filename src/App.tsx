@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Check,
+  ChevronRight,
   FilePlus2,
   FolderOpen,
   Pencil,
   RefreshCw,
-  Save,
 } from "lucide-react";
 import {
   CaptureUpdateAction,
@@ -31,10 +31,61 @@ import {
   readFileText,
   renameFileInDirectory,
   requestDirectoryPermission,
+  resolveParentDir,
   saveTextAsDrawing,
   writeFileText,
 } from "./file-system";
 import type { DrawingEntry } from "./file-system";
+
+type FileTreeNode =
+  | { kind: "directory"; name: string; path: string; children: FileTreeNode[] }
+  | { kind: "file"; entry: DrawingEntry };
+
+function buildFileTree(files: DrawingEntry[]): FileTreeNode[] {
+  const root: FileTreeNode[] = [];
+
+  for (const entry of files) {
+    const parts = entry.relativePath.split("/");
+    let current = root;
+    let pathAcc = "";
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isFile = i === parts.length - 1;
+
+      if (isFile) {
+        current.push({ kind: "file", entry });
+      } else {
+        pathAcc = pathAcc ? `${pathAcc}/${part}` : part;
+        let dir = current.find(
+          (n) => n.kind === "directory" && n.name === part,
+        ) as Extract<FileTreeNode, { kind: "directory" }> | undefined;
+        if (!dir) {
+          dir = { kind: "directory", name: part, path: pathAcc, children: [] };
+          current.push(dir);
+        }
+        current = dir.children;
+      }
+    }
+  }
+
+  // 排序：目录在前，文件在后，各自按名称字母序
+  const sortNodes = (nodes: FileTreeNode[]): FileTreeNode[] => {
+    return nodes.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
+      const na = a.kind === "directory" ? a.name : a.entry.name;
+      const nb = b.kind === "directory" ? b.name : b.entry.name;
+      return na.localeCompare(nb);
+    }).map((node) => {
+      if (node.kind === "directory") {
+        return { ...node, children: sortNodes(node.children) };
+      }
+      return node;
+    });
+  };
+
+  return sortNodes(root);
+}
 import {
   clearDraftScene,
   loadDraftScene,
@@ -54,7 +105,37 @@ type Notice = {
 
 const EMPTY_FILE_NAME = "untitled.excalidraw";
 const THEME_STORAGE_KEY = "excalidraw-app.theme";
-const APP_LANG_STORAGE_KEY = "excalidraw-app.lang";
+const EXPANDED_DIRS_STORAGE_KEY = "excalidraw-app.expandedDirs";
+
+function getStoredExpandedDirs(): Set<string> {
+  try {
+    const value = localStorage.getItem(EXPANDED_DIRS_STORAGE_KEY);
+    const paths = value ? (JSON.parse(value) as unknown) : [];
+    return new Set(Array.isArray(paths) ? paths.filter((p) => typeof p === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistExpandedDirs(paths: Set<string>): void {
+  localStorage.setItem(
+    EXPANDED_DIRS_STORAGE_KEY,
+    JSON.stringify(Array.from(paths).sort()),
+  );
+}
+
+function getAncestorDirectoryPaths(relativePath: string): string[] {
+  const parts = relativePath.split("/");
+  parts.pop();
+
+  const paths: string[] = [];
+  let path = "";
+  for (const part of parts) {
+    path = path ? `${path}/${part}` : part;
+    paths.push(path);
+  }
+  return paths;
+}
 
 export default function App() {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -65,7 +146,6 @@ export default function App() {
   const [currentFile, setCurrentFile] = useState<DrawingEntry | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [dirty, setDirty] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() =>
     getSystemTheme(),
@@ -82,16 +162,43 @@ export default function App() {
 
   // 用 ref 跟踪 currentFile，避免 onChange 闭包里拿到旧值
   const currentFileRef = useRef<DrawingEntry | null>(null);
+  const cleanSceneJSONRef = useRef<string | null>(null);
+  const latestSceneJSONRef = useRef<string | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingAutosaveRef = useRef<{
+    snapshot: string;
+    file: DrawingEntry;
+  } | null>(null);
 
   const supported = isFileSystemAccessSupported();
   const resolvedTheme = themeMode === "system" ? systemTheme : themeMode;
 
   const currentTitle = currentFile?.name ?? EMPTY_FILE_NAME;
+  const saveStatusText = !currentFile
+    ? t(lang, "status.draft")
+    : saveState === "saving"
+      ? t(lang, "file.saving")
+      : saveState === "error"
+        ? t(lang, "status.saveFailed")
+        : t(lang, "file.saved");
 
-  const sortedFiles = useMemo(
-    () => [...files].sort((a, b) => a.name.localeCompare(b.name)),
-    [files],
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() =>
+    getStoredExpandedDirs(),
   );
+
+  const fileTree = useMemo(() => buildFileTree(files), [files]);
+
+  const toggleDir = useCallback((path: string) => {
+    setExpandedDirs((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
 
   const serializeCurrentScene = useCallback(() => {
     if (!api) {
@@ -106,6 +213,11 @@ export default function App() {
     );
   }, [api]);
 
+  const markCleanSnapshot = useCallback((snapshot: string) => {
+    cleanSceneJSONRef.current = snapshot;
+    latestSceneJSONRef.current = snapshot;
+  }, []);
+
   // --- Draft scene 持久化 ---
 
   const persistDraft = useCallback(
@@ -119,12 +231,13 @@ export default function App() {
         elements,
         appState,
         files,
-        currentFileHandle: file?.handle ?? null,
-        currentFileName: file?.name ?? null,
-      });
-    },
-    [],
-  );
+          currentFileHandle: file?.handle ?? null,
+          currentFileName: file?.name ?? null,
+          currentFileRelativePath: file?.relativePath ?? null,
+        });
+      },
+      [],
+    );
 
   // onChange 防抖：避免每次微小变化都写 IndexedDB
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -144,6 +257,86 @@ export default function App() {
     },
     [persistDraft],
   );
+
+  const saveSceneSnapshot = useCallback(
+    async (snapshot: string, file = currentFileRef.current) => {
+      if (!file) {
+        return;
+      }
+
+      setSaveState("saving");
+      setNotice(null);
+
+      try {
+        await writeFileText(file.handle, snapshot);
+
+        if (
+          currentFileRef.current?.relativePath === file.relativePath &&
+          latestSceneJSONRef.current === snapshot
+        ) {
+          markCleanSnapshot(snapshot);
+          setSaveState("saved");
+          window.setTimeout(() => setSaveState("idle"), 1400);
+        }
+      } catch {
+        setSaveState("error");
+        setNotice({ kind: "error", message: t(lang, "error.saveFail") });
+      }
+    },
+    [lang, markCleanSnapshot],
+  );
+
+  const scheduleAutosave = useCallback(
+    (snapshot: string) => {
+      const file = currentFileRef.current;
+      if (!file) {
+        return;
+      }
+
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+
+      pendingAutosaveRef.current = { snapshot, file };
+      setSaveState("saving");
+      autosaveTimerRef.current = setTimeout(() => {
+        if (
+          pendingAutosaveRef.current?.snapshot === snapshot &&
+          pendingAutosaveRef.current.file.relativePath === file.relativePath
+        ) {
+          pendingAutosaveRef.current = null;
+        }
+        void saveSceneSnapshot(snapshot, file);
+      }, 800);
+    },
+    [saveSceneSnapshot],
+  );
+
+  const flushPendingAutosave = useCallback(async () => {
+    const pending = pendingAutosaveRef.current;
+    if (!pending) {
+      return;
+    }
+
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    pendingAutosaveRef.current = null;
+
+    await saveSceneSnapshot(pending.snapshot, pending.file);
+  }, [saveSceneSnapshot]);
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+      if (draftTimerRef.current) {
+        clearTimeout(draftTimerRef.current);
+      }
+    };
+  }, []);
 
   // --- 目录操作 ---
 
@@ -199,6 +392,8 @@ export default function App() {
       setNotice(null);
 
       try {
+        await flushPendingAutosave();
+
         const text = await readFileText(entry.handle);
         const blob = new Blob([text], {
           type: "application/vnd.excalidraw+json",
@@ -226,7 +421,14 @@ export default function App() {
 
         currentFileRef.current = entry;
         setCurrentFile(entry);
-        setDirty(false);
+        setExpandedDirs((prev) => {
+          const next = new Set(prev);
+          for (const path of getAncestorDirectoryPaths(entry.relativePath)) {
+            next.add(path);
+          }
+          return next;
+        });
+        markCleanSnapshot(serializeCurrentScene());
         setSaveState("idle");
 
         // 从文件加载后立即更新 draft
@@ -239,7 +441,7 @@ export default function App() {
         setNotice({ kind: "error", message: t(lang, "error.openFile", { name: entry.name }) });
       }
     },
-    [api, persistDraft],
+    [api, flushPendingAutosave, markCleanSnapshot, persistDraft, serializeCurrentScene],
   );
 
   useEffect(() => {
@@ -253,11 +455,21 @@ export default function App() {
         return;
       }
 
-      void createDrawingEntry(handle)
+      // launch queue 传入的文件无父目录 handle，用空字符串作为 relativePath
+      // directoryHandle 不会用于重命名（这些文件不在根目录树中）
+      const dirHandle = directory as FileSystemDirectoryHandle | null;
+      void createDrawingEntry(
+        handle,
+        handle.name,
+        // 传入一个占位，实际不会使用
+        dirHandle ?? ({} as unknown as FileSystemDirectoryHandle),
+      )
         .then((entry) => {
           setFiles((prev) => {
-            if (prev.some((file) => file.name === entry.name)) {
-              return prev.map((file) => (file.name === entry.name ? entry : file));
+            if (prev.some((file) => file.relativePath === entry.relativePath)) {
+              return prev.map((file) =>
+                file.relativePath === entry.relativePath ? entry : file,
+              );
             }
             return [entry, ...prev];
           });
@@ -274,27 +486,21 @@ export default function App() {
       return;
     }
 
-    setSaveState("saving");
-    setNotice(null);
-
-    try {
-      await writeFileText(currentFile.handle, serializeCurrentScene());
-      setDirty(false);
-      setSaveState("saved");
-
-      // 保存后更新 draft（标记为干净状态）
-      persistDraft(
-        api.getSceneElementsIncludingDeleted(),
-        api.getAppState(),
-        api.getFiles(),
-      );
-
-      window.setTimeout(() => setSaveState("idle"), 1400);
-    } catch {
-      setSaveState("error");
-      setNotice({ kind: "error", message: t(lang, "error.saveFail") });
+    const snapshot = serializeCurrentScene();
+    latestSceneJSONRef.current = snapshot;
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
     }
-  }, [api, currentFile, serializeCurrentScene, persistDraft]);
+    pendingAutosaveRef.current = null;
+    await saveSceneSnapshot(snapshot);
+
+    persistDraft(
+      api.getSceneElementsIncludingDeleted(),
+      api.getAppState(),
+      api.getFiles(),
+    );
+  }, [api, currentFile, saveSceneSnapshot, serializeCurrentScene, persistDraft]);
 
   const saveAs = useCallback(async () => {
     if (!api) {
@@ -305,22 +511,34 @@ export default function App() {
     setNotice(null);
 
     try {
-      const handle = await saveTextAsDrawing(currentTitle, serializeCurrentScene());
+      const snapshot = serializeCurrentScene();
+      const handle = await saveTextAsDrawing(currentTitle, snapshot, directory ?? undefined);
       const entry: DrawingEntry = {
         name: handle.name,
+        relativePath: handle.name,
         handle,
+        directoryHandle: directory ?? ({} as unknown as FileSystemDirectoryHandle),
         lastModified: (await handle.getFile()).lastModified,
       };
 
       currentFileRef.current = entry;
       setCurrentFile(entry);
+      setExpandedDirs((prev) => {
+        const next = new Set(prev);
+        for (const path of getAncestorDirectoryPaths(entry.relativePath)) {
+          next.add(path);
+        }
+        return next;
+      });
       setFiles((prev) => {
-        if (prev.some((file) => file.name === entry.name)) {
-          return prev.map((file) => (file.name === entry.name ? entry : file));
+        if (prev.some((file) => file.relativePath === entry.relativePath)) {
+          return prev.map((file) =>
+            file.relativePath === entry.relativePath ? entry : file,
+          );
         }
         return [...prev, entry];
       });
-      setDirty(false);
+      markCleanSnapshot(snapshot);
       setSaveState("saved");
 
       // 另存为后更新 draft
@@ -339,12 +557,14 @@ export default function App() {
         setSaveState("idle");
       }
     }
-  }, [api, currentTitle, serializeCurrentScene, persistDraft]);
+  }, [api, currentTitle, directory, markCleanSnapshot, serializeCurrentScene, persistDraft]);
 
-  const newDrawing = useCallback(() => {
+  const newDrawing = useCallback(async () => {
     if (!api) {
       return;
     }
+
+    await flushPendingAutosave();
 
     api.resetScene();
     api.updateScene({
@@ -355,13 +575,13 @@ export default function App() {
 
     currentFileRef.current = null;
     setCurrentFile(null);
-    setDirty(false);
+    markCleanSnapshot(serializeCurrentScene());
     setSaveState("idle");
     setNotice(null);
 
     // 新建画布时清除 draft
     void clearDraftScene();
-  }, [api]);
+  }, [api, flushPendingAutosave, markCleanSnapshot, serializeCurrentScene]);
 
   // --- 重命名 ---
 
@@ -381,19 +601,36 @@ export default function App() {
     if (!newName || `${newName}.excalidraw` === currentFile.name) return;
 
     try {
+      // 从根目录逐级获取父目录 handle，确保有 readwrite 权限
+      const parentDir = await resolveParentDir(directory, currentFile.relativePath);
       const newHandle = await renameFileInDirectory(
-        directory,
+        parentDir,
         currentFile.handle,
         newName,
       );
-      const entry = await createDrawingEntry(newHandle);
+
+      // 计算新的 relativePath
+      const pathParts = currentFile.relativePath.split("/");
+      pathParts[pathParts.length - 1] = newHandle.name;
+      const newRelativePath = pathParts.join("/");
+
+      const entry = await createDrawingEntry(newHandle, newRelativePath, parentDir);
 
       currentFileRef.current = entry;
       setCurrentFile(entry);
+      setExpandedDirs((prev) => {
+        const next = new Set(prev);
+        for (const path of getAncestorDirectoryPaths(entry.relativePath)) {
+          next.add(path);
+        }
+        return next;
+      });
 
       // 刷新文件列表
-      const nextFiles = await listDrawingFiles(directory);
-      setFiles(nextFiles);
+      if (directory) {
+        const nextFiles = await listDrawingFiles(directory);
+        setFiles(nextFiles);
+      }
 
       // 更新 draft
       persistDraft(
@@ -477,10 +714,30 @@ export default function App() {
         if (cancelled || !draft) return;
 
         // 恢复 currentFile（如果 draft 里有 handle）
-        if (draft.currentFileHandle) {
-          const entry = await createDrawingEntry(draft.currentFileHandle);
+        const restoredPath = draft.currentFileRelativePath ?? draft.currentFileName;
+        if (!restoredPath) return;
+        if (currentFileRef.current?.relativePath === restoredPath) return;
+
+        const entry = files.find((file) => file.relativePath === restoredPath);
+        if (entry) {
           currentFileRef.current = entry;
           setCurrentFile(entry);
+          setExpandedDirs((prev) => {
+            const next = new Set(prev);
+            for (const path of getAncestorDirectoryPaths(entry.relativePath)) {
+              next.add(path);
+            }
+            return next;
+          });
+          markCleanSnapshot(serializeCurrentScene());
+        } else if (draft.currentFileHandle) {
+          const fallback = await createDrawingEntry(
+            draft.currentFileHandle,
+            restoredPath,
+            ({} as unknown as FileSystemDirectoryHandle),
+          );
+          currentFileRef.current = fallback;
+          setCurrentFile(fallback);
         }
       } catch {
         // handle 失效或权限不足，静默忽略
@@ -490,13 +747,17 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [api]);
+  }, [api, files, markCleanSnapshot, serializeCurrentScene]);
 
   // --- Lang ---
 
   useEffect(() => {
     persistLang(lang);
   }, [lang]);
+
+  useEffect(() => {
+    persistExpandedDirs(expandedDirs);
+  }, [expandedDirs]);
 
   // --- Theme ---
 
@@ -515,6 +776,50 @@ export default function App() {
     return () => query.removeEventListener("change", handleChange);
   }, []);
 
+  // --- 树形节点渲染 ---
+
+  const renderTreeNode = (node: FileTreeNode): React.ReactNode => {
+    if (node.kind === "directory") {
+      const isOpen = expandedDirs.has(node.path);
+      return (
+        <li key={node.path} className="file-tree__dir">
+          <button
+            className="file-tree__dir-toggle"
+            onClick={() => toggleDir(node.path)}
+          >
+            <ChevronRight
+              size={14}
+              className={isOpen ? "file-tree__caret file-tree__caret--open" : "file-tree__caret"}
+            />
+            <span className="file-tree__dir-name">{node.name}</span>
+          </button>
+          {isOpen && node.children.length > 0 && (
+            <ul className="file-tree__list">
+              {node.children.map((child) => renderTreeNode(child))}
+            </ul>
+          )}
+        </li>
+      );
+    }
+
+    const isActive = node.entry.relativePath === currentFile?.relativePath;
+    return (
+      <li key={node.entry.relativePath}>
+        <button
+          className={
+            isActive
+              ? "file-tree__item file-tree__item--active"
+              : "file-tree__item"
+          }
+          onClick={() => void loadDrawing(node.entry)}
+        >
+          <svg className="file-tree__icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span className="file-tree__item-name">{node.entry.name}</span>
+        </button>
+      </li>
+    );
+  };
+
   return (
     <div
       className={chromeHidden ? "workspace workspace--chrome-hidden" : "workspace"}
@@ -523,31 +828,42 @@ export default function App() {
       <aside className="sidebar">
         <header className="sidebar__header">
           <div>
-            <h1>{t(lang, "app.title")}</h1>
-            <p>{directory?.name ?? t(lang, "dir.noSelected")}</p>
+            <h1>{t(lang, "app.title")}<small className="sidebar__hint">{t(lang, "app.hint")}</small></h1>
           </div>
         </header>
 
-        <div className="sidebar__actions">
-          <button
-            className="button button--primary"
-            onClick={openDirectory}
-            disabled={!supported}
-          >
-            <FolderOpen size={16} />
-            {t(lang, "dir.open")}
-          </button>
-          <button
-            className="button button--icon"
-            title={t(lang, "dir.refresh")}
-            onClick={() => void refreshDirectory()}
-            disabled={!directory}
-          >
-            <RefreshCw size={16} />
-          </button>
-        </div>
+        {!directory ? (
+          <div className="sidebar__actions">
+            <button
+              className="button button--primary"
+              onClick={openDirectory}
+              disabled={!supported}
+            >
+              <FolderOpen size={16} />
+              {t(lang, "dir.open")}
+            </button>
+          </div>
+        ) : (
+          <div className="sidebar__actions">
+            <span className="sidebar__dir-name">{directory.name}</span>
+            <button
+              className="button button--icon"
+              title={t(lang, "dir.openOther")}
+              onClick={openDirectory}
+            >
+              <FolderOpen size={16} />
+            </button>
+            <button
+              className="button button--icon"
+              title={t(lang, "dir.refresh")}
+              onClick={() => void refreshDirectory()}
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+        )}
 
-        {directory && sortedFiles.length === 0 && (
+        {directory && files.length === 0 && (
           <div className="sidebar__actions">
             <button
               className="button button--primary"
@@ -566,26 +882,13 @@ export default function App() {
           </div>
         )}
 
-        <div className="file-list">
-          {sortedFiles.length === 0 ? (
+        <div className="file-tree">
+          {files.length === 0 ? (
             <div className="empty-state">{t(lang, "dir.empty")}</div>
           ) : (
-            sortedFiles.map((file) => (
-              <button
-                key={file.name}
-                className={
-                  file.name === currentFile?.name
-                    ? "file-list__item file-list__item--active"
-                    : "file-list__item"
-                }
-                onClick={() => void loadDrawing(file)}
-              >
-                <span>{file.name}</span>
-                {file.lastModified && (
-                  <time>{new Date(file.lastModified).toLocaleDateString()}</time>
-                )}
-              </button>
-            ))
+            <ul className="file-tree__list">
+              {fileTree.map((node) => renderTreeNode(node))}
+            </ul>
           )}
         </div>
       </aside>
@@ -622,7 +925,7 @@ export default function App() {
                 )}
               </div>
             )}
-            <span>{dirty ? t(lang, "status.dirty") : t(lang, "status.synced")}</span>
+            <span>{saveStatusText}</span>
           </div>
 
           <div className="topbar__actions">
@@ -678,24 +981,12 @@ export default function App() {
               </button>
             </div>
 
-            <button className="button" onClick={newDrawing} disabled={!api}>
+            <button className="button" onClick={() => void newDrawing()} disabled={!api}>
               <FilePlus2 size={16} />
               {t(lang, "file.new")}
             </button>
             <button className="button" onClick={() => void saveAs()} disabled={!api}>
               {t(lang, "file.saveAs")}
-            </button>
-            <button
-              className="button button--primary"
-              onClick={() => void saveCurrentFile()}
-              disabled={!api || !currentFile || saveState === "saving"}
-            >
-              {saveState === "saved" ? <Check size={16} /> : <Save size={16} />}
-              {saveState === "saving"
-                ? t(lang, "file.saving")
-                : saveState === "saved"
-                  ? t(lang, "file.saved")
-                  : t(lang, "file.save")}
             </button>
           </div>
         </div>
@@ -718,8 +1009,18 @@ export default function App() {
             }
             onChange={(elements, appState, files) => {
               if (api) {
-                setDirty(true);
+                const snapshot = serializeAsJSON(elements, appState, files, "local");
+                latestSceneJSONRef.current = snapshot;
+                const isDirty = snapshot !== cleanSceneJSONRef.current;
+
                 schedulePersistDraft(elements, appState, files);
+
+                if (isDirty && currentFileRef.current) {
+                  scheduleAutosave(snapshot);
+                } else if (!isDirty && autosaveTimerRef.current) {
+                  clearTimeout(autosaveTimerRef.current);
+                  autosaveTimerRef.current = null;
+                }
               }
             }}
             name={currentTitle.replace(/\.excalidraw$/, "")}

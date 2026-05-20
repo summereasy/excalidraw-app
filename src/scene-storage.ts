@@ -12,6 +12,7 @@ export type DraftScene = {
   files: BinaryFiles;
   currentFileHandle: FileSystemFileHandle | null;
   currentFileName: string | null;
+  currentFileRelativePath: string | null;
 };
 
 const IDB_STORE_NAME = "draft";

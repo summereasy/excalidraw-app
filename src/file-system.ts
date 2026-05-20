@@ -1,11 +1,17 @@
 export type DrawingEntry = {
   name: string;
+  /** 文件相对于根目录的路径，如 "sub/foo.excalidraw" */
+  relativePath: string;
   handle: FileSystemFileHandle;
+  /** 文件所在的直接父目录 handle */
+  directoryHandle: FileSystemDirectoryHandle;
   lastModified: number | null;
 };
 
 export async function createDrawingEntry(
   handle: FileSystemFileHandle,
+  relativePath: string,
+  directoryHandle: FileSystemDirectoryHandle,
 ): Promise<DrawingEntry> {
   let lastModified: number | null = null;
 
@@ -17,7 +23,9 @@ export async function createDrawingEntry(
 
   return {
     name: handle.name,
+    relativePath,
     handle,
+    directoryHandle,
     lastModified,
   };
 }
@@ -37,16 +45,34 @@ export async function listDrawingFiles(
   directory: FileSystemDirectoryHandle,
 ): Promise<DrawingEntry[]> {
   const files: DrawingEntry[] = [];
+  await collectFiles(directory, "", files);
+  return files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+}
 
-  for await (const [, handle] of directory.entries()) {
-    if (handle.kind !== "file" || !handle.name.endsWith(".excalidraw")) {
-      continue;
+async function collectFiles(
+  dir: FileSystemDirectoryHandle,
+  prefix: string,
+  out: DrawingEntry[],
+): Promise<void> {
+  for await (const [name, handle] of dir.entries()) {
+    if (name.startsWith(".")) continue;
+
+    if (handle.kind === "directory") {
+      await collectFiles(
+        handle as FileSystemDirectoryHandle,
+        prefix ? `${prefix}/${name}` : name,
+        out,
+      );
+    } else if (handle.kind === "file" && name.endsWith(".excalidraw")) {
+      out.push(
+        await createDrawingEntry(
+          handle as FileSystemFileHandle,
+          prefix ? `${prefix}/${name}` : name,
+          dir,
+        ),
+      );
     }
-
-    files.push(await createDrawingEntry(handle as FileSystemFileHandle));
   }
-
-  return files.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function readFileText(handle: FileSystemFileHandle): Promise<string> {
@@ -65,9 +91,11 @@ export async function writeFileText(
 export async function saveTextAsDrawing(
   suggestedName: string,
   content: string,
+  startIn?: FileSystemDirectoryHandle,
 ): Promise<FileSystemFileHandle> {
   const handle = await window.showSaveFilePicker({
     suggestedName: ensureDrawingExtension(suggestedName),
+    startIn,
     types: [
       {
         description: "Excalidraw 文件",
@@ -93,8 +121,26 @@ function ensureDrawingExtension(name: string): string {
   return name.endsWith(".excalidraw") ? name : `${name}.excalidraw`;
 }
 
+/**
+ * 从根目录逐级 getDirectoryHandle 到 relativePath 的父目录，
+ * 确保返回的 handle 拥有与根目录一致的 readwrite 权限。
+ */
+export async function resolveParentDir(
+  root: FileSystemDirectoryHandle,
+  relativePath: string,
+): Promise<FileSystemDirectoryHandle> {
+  const parts = relativePath.split("/");
+  parts.pop(); // 去掉文件名
+
+  let dir = root;
+  for (const part of parts) {
+    dir = await dir.getDirectoryHandle(part);
+  }
+  return dir;
+}
+
 export async function renameFileInDirectory(
-  directory: FileSystemDirectoryHandle,
+  parentDir: FileSystemDirectoryHandle,
   oldHandle: FileSystemFileHandle,
   newName: string,
 ): Promise<FileSystemFileHandle> {
@@ -103,12 +149,12 @@ export async function renameFileInDirectory(
   // 读旧文件内容
   const content = await readFileText(oldHandle);
 
-  // 创建新文件并写入
-  const newHandle = await directory.getFileHandle(finalName, { create: true });
+  // 在同一父目录创建新文件并写入
+  const newHandle = await parentDir.getFileHandle(finalName, { create: true });
   await writeFileText(newHandle, content);
 
   // 删除旧文件
-  await directory.removeEntry(oldHandle.name);
+  await parentDir.removeEntry(oldHandle.name);
 
   return newHandle;
 }

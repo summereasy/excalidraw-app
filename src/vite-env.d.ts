@@ -37,6 +37,7 @@ interface Window {
   }): Promise<FileSystemFileHandle[]>;
   showSaveFilePicker(options?: {
     suggestedName?: string;
+    startIn?: FileSystemDirectoryHandle;
     types?: Array<{
       description: string;
       accept: Record<string, string[]>;

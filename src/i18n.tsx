@@ -12,22 +12,23 @@ const translations: Record<AppLang, Record<string, string>> = {
   en: {
     // sidebar header
     "app.title": "Excalidraw App",
+    "app.hint": "\u2318B to hide",
     "dir.noSelected": "No directory selected",
     // sidebar actions
     "dir.open": "Open Directory",
+    "dir.openOther": "Open other folder",
     "dir.refresh": "Refresh",
     "dir.reauthorize": "Re-authorize Directory",
     // file list
     "dir.empty": "No .excalidraw files in directory",
     "file.new": "New",
     "file.saveAs": "Save As",
-    "file.save": "Save",
     "file.saving": "Saving…",
     "file.saved": "Saved",
     "file.rename": "Rename",
     // status
-    "status.dirty": "Unsaved changes",
-    "status.synced": "Synced",
+    "status.draft": "Draft not saved to file",
+    "status.saveFailed": "Save failed",
     // errors
     "error.browserUnsupported":
       "Your browser does not support File System Access API. Please use Chrome or Edge.",
@@ -44,19 +45,20 @@ const translations: Record<AppLang, Record<string, string>> = {
   },
   "zh-CN": {
     "app.title": "Excalidraw App",
+    "app.hint": "\u2318B 隐藏界面",
     "dir.noSelected": "未选择目录",
     "dir.open": "打开目录",
+    "dir.openOther": "打开其他文件夹",
     "dir.refresh": "刷新",
     "dir.reauthorize": "重新授权目录",
     "dir.empty": "目录内没有 .excalidraw 文件",
     "file.new": "新建",
     "file.saveAs": "另存为",
-    "file.save": "保存",
     "file.saving": "保存中",
     "file.saved": "已保存",
     "file.rename": "重命名",
-    "status.dirty": "有未保存修改",
-    "status.synced": "已同步",
+    "status.draft": "草稿未落盘",
+    "status.saveFailed": "保存失败",
     "error.browserUnsupported":
       "当前浏览器不支持 File System Access API，请使用 Chrome 或 Edge。",
     "error.openDir": "无法打开目录",
