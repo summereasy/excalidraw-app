@@ -167,6 +167,12 @@ button {
   padding: 0;
 }
 
+.button--tiny {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+}
+
 .file-list {
   min-height: 0;
   flex: 1;
@@ -258,6 +264,28 @@ button {
 
 .topbar__title {
   min-width: 0;
+}
+
+.topbar__name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbar__rename-input {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+  background: var(--toolbar-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  max-width: 40vw;
+}
+
+.topbar__rename-input:focus {
+  border-color: var(--primary);
 }
 
 .topbar__title strong,

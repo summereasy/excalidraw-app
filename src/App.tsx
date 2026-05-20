@@ -4,6 +4,7 @@ import {
   Check,
   FilePlus2,
   FolderOpen,
+  Pencil,
   RefreshCw,
   Save,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import {
   pickDrawingDirectory,
   queryDirectoryPermission,
   readFileText,
+  renameFileInDirectory,
   requestDirectoryPermission,
   saveTextAsDrawing,
   writeFileText,
@@ -67,6 +69,8 @@ export default function App() {
     getSystemTheme(),
   );
   const [chromeHidden, setChromeHidden] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   // 启动时从 IndexedDB 加载 draft scene 作为 initialData
   const [initialData, setInitialData] = useState<
@@ -356,6 +360,49 @@ export default function App() {
     void clearDraftScene();
   }, [api]);
 
+  // --- 重命名 ---
+
+  const startRename = useCallback(() => {
+    if (!currentFile) return;
+    // 去掉 .excalidraw 后缀作为编辑初始值
+    setRenameValue(currentFile.name.replace(/\.excalidraw$/, ""));
+    setRenaming(true);
+  }, [currentFile]);
+
+  const commitRename = useCallback(async () => {
+    setRenaming(false);
+
+    if (!api || !currentFile || !directory) return;
+
+    const newName = renameValue.trim();
+    if (!newName || `${newName}.excalidraw` === currentFile.name) return;
+
+    try {
+      const newHandle = await renameFileInDirectory(
+        directory,
+        currentFile.handle,
+        newName,
+      );
+      const entry = await createDrawingEntry(newHandle);
+
+      currentFileRef.current = entry;
+      setCurrentFile(entry);
+
+      // 刷新文件列表
+      const nextFiles = await listDrawingFiles(directory);
+      setFiles(nextFiles);
+
+      // 更新 draft
+      persistDraft(
+        api.getSceneElementsIncludingDeleted(),
+        api.getAppState(),
+        api.getFiles(),
+      );
+    } catch {
+      setNotice({ kind: "error", message: "重命名失败" });
+    }
+  }, [api, currentFile, directory, renameValue, persistDraft]);
+
   // --- 键盘快捷键 ---
 
   useEffect(() => {
@@ -537,7 +584,35 @@ export default function App() {
       <main className="editor-shell">
         <div className="topbar">
           <div className="topbar__title">
-            <strong>{currentTitle}</strong>
+            {renaming ? (
+              <input
+                className="topbar__rename-input"
+                value={renameValue}
+                autoFocus
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    void commitRename();
+                  } else if (e.key === "Escape") {
+                    setRenaming(false);
+                  }
+                }}
+                onBlur={() => void commitRename()}
+              />
+            ) : (
+              <div className="topbar__name-row">
+                <strong>{currentTitle}</strong>
+                {currentFile && directory && (
+                  <button
+                    className="button button--icon button--tiny"
+                    title="重命名"
+                    onClick={startRename}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                )}
+              </div>
+            )}
             <span>{dirty ? "有未保存修改" : "已同步"}</span>
           </div>
 

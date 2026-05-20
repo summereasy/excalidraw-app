@@ -93,6 +93,26 @@ function ensureDrawingExtension(name: string): string {
   return name.endsWith(".excalidraw") ? name : `${name}.excalidraw`;
 }
 
+export async function renameFileInDirectory(
+  directory: FileSystemDirectoryHandle,
+  oldHandle: FileSystemFileHandle,
+  newName: string,
+): Promise<FileSystemFileHandle> {
+  const finalName = ensureDrawingExtension(newName);
+
+  // 读旧文件内容
+  const content = await readFileText(oldHandle);
+
+  // 创建新文件并写入
+  const newHandle = await directory.getFileHandle(finalName, { create: true });
+  await writeFileText(newHandle, content);
+
+  // 删除旧文件
+  await directory.removeEntry(oldHandle.name);
+
+  return newHandle;
+}
+
 // --- IndexedDB 持久化 directory handle ---
 
 const IDB_DB_NAME = "excalidraw-app";
