@@ -41,7 +41,7 @@ button {
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   width: 100vw;
   height: 100vh;
   min-width: 840px;
@@ -50,7 +50,7 @@ button {
 }
 
 .workspace--chrome-hidden {
-  grid-template-columns: 0 minmax(0, 1fr);
+  /* sidebar width 由 .sidebar 自身的 transition 处理 */
 }
 
 .workspace[data-theme="dark"] {
@@ -78,17 +78,21 @@ button {
 
 .sidebar {
   display: flex;
+  width: 292px;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
   border-right: 1px solid var(--panel-border);
   background: var(--panel-bg);
   overflow: hidden;
   transition:
-    border-color 140ms ease,
-    opacity 140ms ease;
+    width 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 200ms ease,
+    border-color 140ms ease;
 }
 
 .workspace--chrome-hidden .sidebar {
+  width: 0;
   border-right-color: transparent;
   opacity: 0;
   pointer-events: none;
@@ -232,29 +236,29 @@ button {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: 52px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
-.workspace--chrome-hidden .editor-shell {
-  grid-template-rows: 0 minmax(0, 1fr);
-}
+/* topbar height 由 .topbar 自身的 transition 处理 */
 
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  max-height: 52px;
   border-bottom: 1px solid var(--panel-border);
   background: var(--toolbar-bg);
   padding: 8px 12px 8px 16px;
   overflow: hidden;
   transition:
-    border-color 140ms ease,
-    opacity 140ms ease,
-    padding 140ms ease;
+    max-height 280ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 200ms ease,
+    border-color 140ms ease;
 }
 
 .workspace--chrome-hidden .topbar {
+  max-height: 0;
   border-bottom-color: transparent;
   opacity: 0;
   padding-top: 0;
