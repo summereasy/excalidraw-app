@@ -340,18 +340,43 @@ button {
   padding: 0 9px;
 }
 
-.theme-toggle button:last-child {
+.theme-toggle button:last-child,
+.lang-toggle button:last-child {
   border-right: 0;
 }
 
-.theme-toggle button:hover {
+.theme-toggle button:hover,
+.lang-toggle button:hover {
   background: var(--button-hover-bg);
   color: var(--text-main);
 }
 
-.theme-toggle button.active {
+.theme-toggle button.active,
+.lang-toggle button.active {
   background: var(--primary);
   color: #ffffff;
+}
+
+.lang-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(42px, auto));
+  min-height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--button-border);
+  border-radius: 7px;
+  background: var(--button-bg);
+}
+
+.lang-toggle button {
+  min-width: 42px;
+  border: 0;
+  border-right: 1px solid var(--button-border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 0 9px;
 }
 
 .notice {

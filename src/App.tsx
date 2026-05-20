@@ -41,6 +41,7 @@ import {
   saveDraftScene,
 } from "./scene-storage";
 import type { DraftScene } from "./scene-storage";
+import { type AppLang, getStoredLang, persistLang, t } from "./i18n";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 type ThemeMode = "light" | "dark" | "system";
@@ -53,6 +54,7 @@ type Notice = {
 
 const EMPTY_FILE_NAME = "untitled.excalidraw";
 const THEME_STORAGE_KEY = "excalidraw-app.theme";
+const APP_LANG_STORAGE_KEY = "excalidraw-app.lang";
 
 export default function App() {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -71,6 +73,7 @@ export default function App() {
   const [chromeHidden, setChromeHidden] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [lang, setLang] = useState<AppLang>(() => getStoredLang());
 
   // 启动时从 IndexedDB 加载 draft scene 作为 initialData
   const [initialData, setInitialData] = useState<
@@ -92,7 +95,7 @@ export default function App() {
 
   const serializeCurrentScene = useCallback(() => {
     if (!api) {
-      throw new Error("Excalidraw 还没有初始化完成");
+      throw new Error("Excalidraw has not been initialized yet");
     }
 
     return serializeAsJSON(
@@ -180,7 +183,7 @@ export default function App() {
       void persistDirectoryHandle(result.directory);
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") {
-        setNotice({ kind: "error", message: "无法打开目录" });
+        setNotice({ kind: "error", message: t(lang, "error.openDir") });
       }
     }
   }, []);
@@ -233,7 +236,7 @@ export default function App() {
           api.getFiles(),
         );
       } catch {
-        setNotice({ kind: "error", message: `无法打开 ${entry.name}` });
+        setNotice({ kind: "error", message: t(lang, "error.openFile", { name: entry.name }) });
       }
     },
     [api, persistDraft],
@@ -261,7 +264,7 @@ export default function App() {
           return loadDrawing(entry);
         })
         .catch(() => {
-          setNotice({ kind: "error", message: "无法打开系统传入的文件" });
+          setNotice({ kind: "error", message: t(lang, "error.launchFile") });
         });
     });
   }, [api, loadDrawing]);
@@ -289,7 +292,7 @@ export default function App() {
       window.setTimeout(() => setSaveState("idle"), 1400);
     } catch {
       setSaveState("error");
-      setNotice({ kind: "error", message: "保存失败，请检查文件写入权限" });
+      setNotice({ kind: "error", message: t(lang, "error.saveFail") });
     }
   }, [api, currentFile, serializeCurrentScene, persistDraft]);
 
@@ -331,7 +334,7 @@ export default function App() {
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") {
         setSaveState("error");
-        setNotice({ kind: "error", message: "另存为失败" });
+        setNotice({ kind: "error", message: t(lang, "error.saveAsFail") });
       } else {
         setSaveState("idle");
       }
@@ -399,7 +402,7 @@ export default function App() {
         api.getFiles(),
       );
     } catch {
-      setNotice({ kind: "error", message: "重命名失败" });
+      setNotice({ kind: "error", message: t(lang, "error.renameFail") });
     }
   }, [api, currentFile, directory, renameValue, persistDraft]);
 
@@ -489,6 +492,12 @@ export default function App() {
     };
   }, [api]);
 
+  // --- Lang ---
+
+  useEffect(() => {
+    persistLang(lang);
+  }, [lang]);
+
   // --- Theme ---
 
   useEffect(() => {
@@ -514,8 +523,8 @@ export default function App() {
       <aside className="sidebar">
         <header className="sidebar__header">
           <div>
-            <h1>Excalidraw App</h1>
-            <p>{directory?.name ?? "未选择目录"}</p>
+            <h1>{t(lang, "app.title")}</h1>
+            <p>{directory?.name ?? t(lang, "dir.noSelected")}</p>
           </div>
         </header>
 
@@ -526,11 +535,11 @@ export default function App() {
             disabled={!supported}
           >
             <FolderOpen size={16} />
-            打开目录
+            {t(lang, "dir.open")}
           </button>
           <button
             className="button button--icon"
-            title="刷新"
+            title={t(lang, "dir.refresh")}
             onClick={() => void refreshDirectory()}
             disabled={!directory}
           >
@@ -545,7 +554,7 @@ export default function App() {
               onClick={() => void reauthorizeDirectory()}
             >
               <FolderOpen size={16} />
-              重新授权目录
+              {t(lang, "dir.reauthorize")}
             </button>
           </div>
         )}
@@ -553,13 +562,13 @@ export default function App() {
         {!supported && (
           <div className="notice notice--error">
             <AlertCircle size={16} />
-            当前浏览器不支持 File System Access API，请使用 Chrome 或 Edge。
+            {t(lang, "error.browserUnsupported")}
           </div>
         )}
 
         <div className="file-list">
           {sortedFiles.length === 0 ? (
-            <div className="empty-state">目录内没有 .excalidraw 文件</div>
+            <div className="empty-state">{t(lang, "dir.empty")}</div>
           ) : (
             sortedFiles.map((file) => (
               <button
@@ -605,7 +614,7 @@ export default function App() {
                 {currentFile && directory && (
                   <button
                     className="button button--icon button--tiny"
-                    title="重命名"
+                    title={t(lang, "file.rename")}
                     onClick={startRename}
                   >
                     <Pencil size={13} />
@@ -613,7 +622,7 @@ export default function App() {
                 )}
               </div>
             )}
-            <span>{dirty ? "有未保存修改" : "已同步"}</span>
+            <span>{dirty ? t(lang, "status.dirty") : t(lang, "status.synced")}</span>
           </div>
 
           <div className="topbar__actions">
@@ -628,36 +637,53 @@ export default function App() {
               </div>
             )}
 
-            <div className="theme-toggle" aria-label="主题切换">
+            <div className="theme-toggle" aria-label="Theme">
               <button
                 className={themeMode === "light" ? "active" : ""}
                 onClick={() => setThemeMode("light")}
                 type="button"
               >
-                浅色
+                {t(lang, "theme.light")}
               </button>
               <button
                 className={themeMode === "dark" ? "active" : ""}
                 onClick={() => setThemeMode("dark")}
                 type="button"
               >
-                深色
+                {t(lang, "theme.dark")}
               </button>
               <button
                 className={themeMode === "system" ? "active" : ""}
                 onClick={() => setThemeMode("system")}
                 type="button"
               >
-                系统
+                {t(lang, "theme.system")}
+              </button>
+            </div>
+
+            <div className="lang-toggle" aria-label="Language">
+              <button
+                className={lang === "en" ? "active" : ""}
+                onClick={() => setLang("en")}
+                type="button"
+              >
+                EN
+              </button>
+              <button
+                className={lang === "zh-CN" ? "active" : ""}
+                onClick={() => setLang("zh-CN")}
+                type="button"
+              >
+                中
               </button>
             </div>
 
             <button className="button" onClick={newDrawing} disabled={!api}>
               <FilePlus2 size={16} />
-              新建
+              {t(lang, "file.new")}
             </button>
             <button className="button" onClick={() => void saveAs()} disabled={!api}>
-              另存为
+              {t(lang, "file.saveAs")}
             </button>
             <button
               className="button button--primary"
@@ -666,10 +692,10 @@ export default function App() {
             >
               {saveState === "saved" ? <Check size={16} /> : <Save size={16} />}
               {saveState === "saving"
-                ? "保存中"
+                ? t(lang, "file.saving")
                 : saveState === "saved"
-                  ? "已保存"
-                  : "保存"}
+                  ? t(lang, "file.saved")
+                  : t(lang, "file.save")}
             </button>
           </div>
         </div>
@@ -697,6 +723,7 @@ export default function App() {
               }
             }}
             name={currentTitle.replace(/\.excalidraw$/, "")}
+            langCode={lang}
             theme={resolvedTheme}
             UIOptions={{
               canvasActions: {
