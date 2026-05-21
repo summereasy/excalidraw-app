@@ -19,15 +19,13 @@ Excalidraw App embeds the official `@excalidraw/excalidraw` component and wraps 
 - 💾 `Cmd+S` to save directly back to the original file
 - 🎨 Light/Dark/System theme support
 - 🌐 English & 简体中文 UI (toggle in topbar)
-- 📱 Install as PWA and double-click `.excalidraw` files to open them natively
+- 📱 Optional: install as PWA to double-click `.excalidraw` files to open them natively
 
 ## Installation & Usage
 
-### Recommended: Docker + PWA (smoothest experience)
+### Recommended: Docker
 
-This is the recommended way for daily use. Just two steps:
-
-**Step 1: Start a local server with Docker**
+The simplest way to get started. Start a local server, open a folder, and all your `.excalidraw` files are right there in the sidebar.
 
 ```bash
 docker pull ghcr.io/summereasy/excalidraw-app:latest
@@ -44,16 +42,6 @@ Then open http://127.0.0.1:38767/ .
 
 > The container only serves static files. File read/write is done locally through the browser's File System Access API — the container never accesses your files.
 
-**Step 2: Install as PWA**
-
-Open the address above in Chrome / Edge / Brave, then:
-
-1. Browser menu → **Install Excalidraw App**
-2. After installation, set the installed app as the default handler for `.excalidraw` files on macOS:
-   - Right-click a `.excalidraw` file in Finder → Get Info → Open With → select Excalidraw App → Change All
-
-After that, double-clicking any `.excalidraw` file will open it directly — no more manual import/export.
-
 To stop the service:
 
 ```bash
@@ -61,6 +49,18 @@ docker stop excalidraw-app && docker rm excalidraw-app
 # Apple Containers:
 container stop excalidraw-app
 ```
+
+### Optional: Install as PWA (for double-click to open)
+
+If you frequently open `.excalidraw` files from Finder / File Explorer, installing the PWA lets you double-click them to open directly — like a native app.
+
+Open http://127.0.0.1:38767/ in Chrome / Edge / Brave, then:
+
+1. Browser menu → **Install Excalidraw App**
+2. After installation, set the installed app as the default handler for `.excalidraw` files on macOS:
+   - Right-click a `.excalidraw` file in Finder → Get Info → Open With → select Excalidraw App → Change All
+
+Once configured, double-clicking any `.excalidraw` file will open it directly in the PWA.
 
 ### Development
 
