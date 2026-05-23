@@ -2,7 +2,10 @@ import {
   restoreLibraryItems,
   serializeLibraryAsJSON,
 } from "@excalidraw/excalidraw";
-import type { LibraryItems } from "@excalidraw/excalidraw/types";
+import type {
+  LibraryItems,
+  LibraryItems_anyVersion,
+} from "@excalidraw/excalidraw/types";
 
 import { openIDB } from "./file-system";
 
@@ -34,8 +37,9 @@ export async function loadPersistedLibrary(): Promise<LibraryItems | null> {
   }
 
   try {
-    const data = JSON.parse(json) as { libraryItems?: unknown };
-    return restoreLibraryItems(data.libraryItems ?? [], "unpublished");
+    const data = JSON.parse(json) as { libraryItems?: LibraryItems_anyVersion };
+    const items = data.libraryItems ?? ([] as LibraryItems_anyVersion);
+    return restoreLibraryItems(items, "unpublished");
   } catch {
     return null;
   }
