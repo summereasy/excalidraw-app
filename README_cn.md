@@ -33,7 +33,7 @@ bun run build
 示例 `Caddyfile`:
 
 ```caddyfile
-http://127.0.0.1:7072 {
+http://127.0.0.1:7070 {
 	root * ./dist
 	file_server
 
@@ -48,7 +48,7 @@ http://127.0.0.1:7072 {
 caddy run --config Caddyfile
 ```
 
-然后打开 http://127.0.0.1:7072/ 。
+然后打开 http://127.0.0.1:7070/ 。
 
 > Caddy 只负责提供 `dist/` 静态文件。文件读写仍然通过浏览器的 File System Access API 在本地完成，Caddy 不访问你的绘图文件。
 

@@ -33,7 +33,7 @@ bun run build
 Example `Caddyfile`:
 
 ```caddyfile
-http://127.0.0.1:7072 {
+http://127.0.0.1:7070 {
 	root * ./dist
 	file_server
 
@@ -48,7 +48,7 @@ Run Caddy from the project root:
 caddy run --config Caddyfile
 ```
 
-Then open http://127.0.0.1:7072/ .
+Then open http://127.0.0.1:7070/ .
 
 > Caddy only serves static files from `dist/`. File read/write is done locally through the browser's File System Access API; Caddy never accesses your drawing files.
 
