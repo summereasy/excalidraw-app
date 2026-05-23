@@ -36,7 +36,6 @@ const translations: Record<AppLang, Record<string, string>> = {
     "error.openFile": "Failed to open {name}",
     "error.saveFail": "Save failed — check file write permissions",
     "error.saveAsFail": "Save As failed",
-    "error.launchFile": "Failed to open file from system",
     "error.renameFail": "Rename failed",
     // theme
     "theme.light": "Light",
@@ -65,7 +64,6 @@ const translations: Record<AppLang, Record<string, string>> = {
     "error.openFile": "无法打开 {name}",
     "error.saveFail": "保存失败，请检查文件写入权限",
     "error.saveAsFail": "另存为失败",
-    "error.launchFile": "无法打开系统传入的文件",
     "error.renameFail": "重命名失败",
     "theme.light": "浅色",
     "theme.dark": "深色",

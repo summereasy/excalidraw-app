@@ -11,7 +11,6 @@ Excalidraw 官方网站是一个很棒的画图工具,但如果你日常维护�
 - 每次打开都要手动选择文件
 - 保存需要手动导出下载
 - 没有文件列表,无法快速切换
-- 无法像本地 app 一样双击 `.excalidraw` 文件直接打开
 
 Excalidraw App 直接内嵌了官方 `@excalidraw/excalidraw` 组件,并围绕它加了一层本地文件操作 shell,核心能力:
 
@@ -19,58 +18,48 @@ Excalidraw App 直接内嵌了官方 `@excalidraw/excalidraw` 组件,并围绕�
 - 💾 `Cmd+S` 直接保存回原文件
 - 🎨 支持浅色/深色/跟随系统主题
 - 🌐 英文 & 简体中文 UI(顶栏切换)
-- 📱 可选: 安装为 PWA 后可以像原生 App 一样双击打开 `.excalidraw` 文件
 
 ## 安装与使用
 
-### 推荐: Docker
+### 推荐: 本机 Caddy
 
-最简单的使用方式。起一个本地服务，打开一个文件夹，侧边栏里就能看到所有的 `.excalidraw` 文件。
-
-```bash
-docker pull ghcr.io/summereasy/excalidraw-app:latest
-docker run -d --name excalidraw-app -p 38767:80 ghcr.io/summereasy/excalidraw-app:latest
-```
-
-用 Apple Containers:
+这是一个纯静态的浏览器 app。推荐路径是先构建一次,再用本机静态文件服务提供 `dist/`。Caddy 是一个简单选择:
 
 ```bash
-container run --rm -d --name excalidraw-app -p 38767:80 excalidraw-app:latest
+bun install
+bun run build
 ```
 
-然后打开 http://127.0.0.1:38767/ 。
+示例 `Caddyfile`:
 
-> 容器只提供静态文件服务，文件读写仍然通过浏览器的 File System Access API 在本地完成，容器不需要访问你的文件。
+```caddyfile
+http://127.0.0.1:7072 {
+	root * ./dist
+	file_server
 
-停止服务:
+	@appShell path / /index.html
+	header @appShell Cache-Control "no-cache"
+}
+```
+
+在项目根目录运行 Caddy:
 
 ```bash
-docker stop excalidraw-app && docker rm excalidraw-app
-# Apple Containers:
-container stop excalidraw-app
+caddy run --config Caddyfile
 ```
 
-### 可选: 安装 PWA (支持双击打开文件)
+然后打开 http://127.0.0.1:7072/ 。
 
-如果你经常需要从 Finder / 文件管理器中双击打开 `.excalidraw` 文件，可以安装 PWA，获得类似原生 App 的体验。
-
-在 Chrome / Edge / Brave 中打开 http://127.0.0.1:38767/ ，然后:
-
-1. 浏览器菜单 → **Install Excalidraw App**
-2. 安装完成后，在 macOS 中将 `.excalidraw` 文件的默认打开方式指向安装的 App:
-   - Finder 中右键一个 `.excalidraw` 文件 → 显示简介 → 打开方式 → 选择 Excalidraw App → 全部更改
-
-配置完成后，双击任意 `.excalidraw` 文件就会直接在 PWA 中打开编辑。
+> Caddy 只负责提供 `dist/` 静态文件。文件读写仍然通过浏览器的 File System Access API 在本地完成，Caddy 不访问你的绘图文件。
 
 ### 开发环境运行
 
 适合想修改代码或调试的场景。
 
-依赖: Node.js 18+, pnpm
+依赖: Node.js 18+，并已安装项目依赖。
 
 ```bash
-pnpm install
-pnpm dev
+bun run dev
 ```
 
 浏览器打开打印出来的本地地址 (通常 http://127.0.0.1:5173/)。
@@ -78,26 +67,15 @@ pnpm dev
 构建生产版本:
 
 ```bash
-pnpm build
-pnpm preview   # 本地预览生产构建
+bun run build
+bun run preview   # 本地预览生产构建
 ```
 
-### Docker 自行构建
+### 部署模型
 
-适合想自己打镜像部署的场景。
+这是一个纯静态 SPA，构建产物在 `dist/` 目录。可以用任何静态文件服务器提供这个目录,比如 Caddy、nginx、Apache,或者托管静态站点服务。
 
-```bash
-pnpm build
-container build -t excalidraw-app:latest .
-# 或:
-pnpm image:build
-```
-
-镜像只包含 `dist/` + nginx,不含 Node 构建环境。
-
-### 部署
-
-这是一个纯静态 SPA,构建产物在 `dist/` 目录。扔到任何静态文件服务器 (nginx, Caddy, Vercel, Netlify...) 即可。唯一要求是 HTTPS (PWA 和 File System Access API 需要),本地 `127.0.0.1` 是例外,不需要 HTTPS。
+File System Access API 通常要求 HTTPS,但本地 `127.0.0.1` 和 `localhost` 是 secure context 例外,不需要 HTTPS。
 
 ## 快捷键
 
@@ -129,7 +107,6 @@ Brave 默认禁用了 File System Access API,不开启的话无法使用本应�
 ### 其他限制
 
 - 只能访问你主动选择的目录,无法静默读写任意路径 (浏览器安全边界)
-- PWA 文件双击打开的支持依赖浏览器的 file handler 能力,Chrome 和 Edge 支持最好
 - 没有后端服务器,所有文件操作都在浏览器本地完成
 
 ## 致谢

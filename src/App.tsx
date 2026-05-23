@@ -497,43 +497,6 @@ export default function App() {
     [api, flushPendingAutosave, markCleanSnapshot, persistDraft, serializeCurrentScene],
   );
 
-  useEffect(() => {
-    if (!api || !("launchQueue" in window)) {
-      return;
-    }
-
-    window.launchQueue.setConsumer((launchParams) => {
-      const [handle] = launchParams.files ?? [];
-      if (!handle || handle.kind !== "file") {
-        return;
-      }
-
-      // launch queue 传入的文件无父目录 handle，用空字符串作为 relativePath
-      // directoryHandle 不会用于重命名（这些文件不在根目录树中）
-      const dirHandle = directory as FileSystemDirectoryHandle | null;
-      void createDrawingEntry(
-        handle,
-        handle.name,
-        // 传入一个占位，实际不会使用
-        dirHandle ?? ({} as unknown as FileSystemDirectoryHandle),
-      )
-        .then((entry) => {
-          setFiles((prev) => {
-            if (prev.some((file) => file.relativePath === entry.relativePath)) {
-              return prev.map((file) =>
-                file.relativePath === entry.relativePath ? entry : file,
-              );
-            }
-            return [entry, ...prev];
-          });
-          return loadDrawing(entry);
-        })
-        .catch(() => {
-          setNotice({ kind: "error", message: t(lang, "error.launchFile") });
-        });
-    });
-  }, [api, loadDrawing]);
-
   const saveCurrentFile = useCallback(async () => {
     if (!api || !currentFile) {
       return;

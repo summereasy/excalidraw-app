@@ -11,7 +11,6 @@ The official Excalidraw website is a great drawing tool, but if you maintain a l
 - You have to manually select a file every time you open one
 - Saving requires manual export/download
 - There's no file list for quick switching
-- You can't double-click a `.excalidraw` file to open it like a native app
 
 Excalidraw App embeds the official `@excalidraw/excalidraw` component and wraps it with a local file operation shell. Core features:
 
@@ -19,58 +18,48 @@ Excalidraw App embeds the official `@excalidraw/excalidraw` component and wraps 
 - 💾 `Cmd+S` to save directly back to the original file
 - 🎨 Light/Dark/System theme support
 - 🌐 English & 简体中文 UI (toggle in topbar)
-- 📱 Optional: install as PWA to double-click `.excalidraw` files to open them natively
 
 ## Installation & Usage
 
-### Recommended: Docker
+### Recommended: Local Caddy
 
-The simplest way to get started. Start a local server, open a folder, and all your `.excalidraw` files are right there in the sidebar.
-
-```bash
-docker pull ghcr.io/summereasy/excalidraw-app:latest
-docker run -d --name excalidraw-app -p 38767:80 ghcr.io/summereasy/excalidraw-app:latest
-```
-
-Using Apple Containers:
+This app is a static browser app. The recommended production path is to build it once, then serve `dist/` from a local static file server. Caddy is a simple option:
 
 ```bash
-container run --rm -d --name excalidraw-app -p 38767:80 excalidraw-app:latest
+bun install
+bun run build
 ```
 
-Then open http://127.0.0.1:38767/ .
+Example `Caddyfile`:
 
-> The container only serves static files. File read/write is done locally through the browser's File System Access API — the container never accesses your files.
+```caddyfile
+http://127.0.0.1:7072 {
+	root * ./dist
+	file_server
 
-To stop the service:
+	@appShell path / /index.html
+	header @appShell Cache-Control "no-cache"
+}
+```
+
+Run Caddy from the project root:
 
 ```bash
-docker stop excalidraw-app && docker rm excalidraw-app
-# Apple Containers:
-container stop excalidraw-app
+caddy run --config Caddyfile
 ```
 
-### Optional: Install as PWA (for double-click to open)
+Then open http://127.0.0.1:7072/ .
 
-If you frequently open `.excalidraw` files from Finder / File Explorer, installing the PWA lets you double-click them to open directly — like a native app.
-
-Open http://127.0.0.1:38767/ in Chrome / Edge / Brave, then:
-
-1. Browser menu → **Install Excalidraw App**
-2. After installation, set the installed app as the default handler for `.excalidraw` files on macOS:
-   - Right-click a `.excalidraw` file in Finder → Get Info → Open With → select Excalidraw App → Change All
-
-Once configured, double-clicking any `.excalidraw` file will open it directly in the PWA.
+> Caddy only serves static files from `dist/`. File read/write is done locally through the browser's File System Access API; Caddy never accesses your drawing files.
 
 ### Development
 
 For hacking on the code or debugging.
 
-Requirements: Node.js 18+, pnpm
+Requirements: Node.js 18+ and project dependencies installed.
 
 ```bash
-pnpm install
-pnpm dev
+bun run dev
 ```
 
 Open the printed local address in your browser (usually http://127.0.0.1:5173/).
@@ -78,26 +67,15 @@ Open the printed local address in your browser (usually http://127.0.0.1:5173/).
 Build for production:
 
 ```bash
-pnpm build
-pnpm preview   # preview production build locally
+bun run build
+bun run preview   # preview production build locally
 ```
 
-### Build Docker Image
+### Deployment Model
 
-For building and deploying your own image.
+This is a purely static SPA. Build output goes to `dist/`. Serve that directory with any static file server, such as Caddy, nginx, Apache, or a managed static hosting service.
 
-```bash
-pnpm build
-container build -t excalidraw-app:latest .
-# or:
-pnpm image:build
-```
-
-The image only contains `dist/` + nginx — no Node.js build environment.
-
-### Deployment
-
-This is a purely static SPA. Build output goes to `dist/`. Drop it onto any static file server (nginx, Caddy, Vercel, Netlify...). The only requirement is HTTPS (needed for PWA and File System Access API). Local `127.0.0.1` is an exception — no HTTPS needed.
+The File System Access API normally requires HTTPS, but local `127.0.0.1` and `localhost` are secure-context exceptions.
 
 ## Keyboard Shortcuts
 
@@ -129,7 +107,6 @@ Brave disables the File System Access API by default. You need to enable it manu
 ### Other Limitations
 
 - Can only access directories you explicitly select — no silent read/write of arbitrary paths (browser security boundary)
-- PWA file double-click support depends on the browser's file handler capability — Chrome and Edge have the best support
 - There is no backend server — all file operations happen locally in the browser
 
 ## Acknowledgements

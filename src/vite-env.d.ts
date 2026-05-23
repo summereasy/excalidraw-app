@@ -26,7 +26,6 @@ interface FileSystemWritableFileStream extends WritableStream {
 }
 
 interface Window {
-  launchQueue: LaunchQueue;
   showDirectoryPicker(options?: {
     mode?: "read" | "readwrite";
     id?: string;
@@ -57,11 +56,3 @@ type WellKnownDirectory =
   | "music"
   | "pictures"
   | "videos";
-
-interface LaunchParams {
-  readonly files?: FileSystemFileHandle[];
-}
-
-interface LaunchQueue {
-  setConsumer(consumer: (launchParams: LaunchParams) => void): void;
-}
