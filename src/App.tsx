@@ -370,7 +370,7 @@ export default function App() {
     setNotice(null);
 
     try {
-      const result = await pickDrawingDirectory();
+      const result = await pickDrawingDirectory(directory ?? undefined);
       setDirectory(result.directory);
       setFiles(result.files);
       void persistDirectoryHandle(result.directory);
@@ -379,7 +379,7 @@ export default function App() {
         setNotice({ kind: "error", message: t(lang, "error.openDir") });
       }
     }
-  }, []);
+  }, [directory, lang]);
 
   // --- 文件操作 ---
 
@@ -512,7 +512,14 @@ export default function App() {
 
     try {
       const snapshot = serializeCurrentScene();
-      const handle = await saveTextAsDrawing(currentTitle, snapshot, directory ?? undefined);
+      let startIn: FileSystemDirectoryHandle | undefined;
+      if (directory) {
+        const perm = await requestDirectoryPermission(directory);
+        if (perm === "granted") {
+          startIn = directory;
+        }
+      }
+      const handle = await saveTextAsDrawing(currentTitle, snapshot, { startIn });
       const entry: DrawingEntry = {
         name: handle.name,
         relativePath: handle.name,
@@ -557,7 +564,15 @@ export default function App() {
         setSaveState("idle");
       }
     }
-  }, [api, currentTitle, directory, markCleanSnapshot, serializeCurrentScene, persistDraft]);
+  }, [
+    api,
+    currentTitle,
+    directory,
+    lang,
+    markCleanSnapshot,
+    serializeCurrentScene,
+    persistDraft,
+  ]);
 
   const newDrawing = useCallback(async () => {
     if (!api) {

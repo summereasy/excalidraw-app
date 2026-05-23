@@ -27,7 +27,11 @@ interface FileSystemWritableFileStream extends WritableStream {
 
 interface Window {
   launchQueue: LaunchQueue;
-  showDirectoryPicker(options?: { mode?: "read" | "readwrite" }): Promise<FileSystemDirectoryHandle>;
+  showDirectoryPicker(options?: {
+    mode?: "read" | "readwrite";
+    id?: string;
+    startIn?: FileSystemDirectoryHandle | WellKnownDirectory;
+  }): Promise<FileSystemDirectoryHandle>;
   showOpenFilePicker(options?: {
     multiple?: boolean;
     types?: Array<{
@@ -37,13 +41,22 @@ interface Window {
   }): Promise<FileSystemFileHandle[]>;
   showSaveFilePicker(options?: {
     suggestedName?: string;
-    startIn?: FileSystemDirectoryHandle;
+    id?: string;
+    startIn?: FileSystemDirectoryHandle | WellKnownDirectory;
     types?: Array<{
       description: string;
       accept: Record<string, string[]>;
     }>;
   }): Promise<FileSystemFileHandle>;
 }
+
+type WellKnownDirectory =
+  | "desktop"
+  | "documents"
+  | "downloads"
+  | "music"
+  | "pictures"
+  | "videos";
 
 interface LaunchParams {
   readonly files?: FileSystemFileHandle[];

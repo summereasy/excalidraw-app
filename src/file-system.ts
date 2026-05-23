@@ -1,3 +1,6 @@
+/** 与 showDirectoryPicker / showSaveFilePicker 共用，便于浏览器记住工作区目录 */
+export const WORKSPACE_PICKER_ID = "excalidraw-workspace";
+
 export type DrawingEntry = {
   name: string;
   /** 文件相对于根目录的路径，如 "sub/foo.excalidraw" */
@@ -30,11 +33,17 @@ export async function createDrawingEntry(
   };
 }
 
-export async function pickDrawingDirectory(): Promise<{
+export async function pickDrawingDirectory(
+  startIn?: FileSystemDirectoryHandle,
+): Promise<{
   directory: FileSystemDirectoryHandle;
   files: DrawingEntry[];
 }> {
-  const directory = await window.showDirectoryPicker({ mode: "readwrite" });
+  const directory = await window.showDirectoryPicker({
+    mode: "readwrite",
+    id: WORKSPACE_PICKER_ID,
+    startIn,
+  });
   return {
     directory,
     files: await listDrawingFiles(directory),
@@ -88,14 +97,19 @@ export async function writeFileText(
   await writable.close();
 }
 
+export type SaveDrawingPickerOptions = {
+  startIn?: FileSystemDirectoryHandle;
+};
+
 export async function saveTextAsDrawing(
   suggestedName: string,
   content: string,
-  startIn?: FileSystemDirectoryHandle,
+  options?: SaveDrawingPickerOptions,
 ): Promise<FileSystemFileHandle> {
   const handle = await window.showSaveFilePicker({
     suggestedName: ensureDrawingExtension(suggestedName),
-    startIn,
+    id: WORKSPACE_PICKER_ID,
+    ...(options?.startIn ? { startIn: options.startIn } : {}),
     types: [
       {
         description: "Excalidraw 文件",
