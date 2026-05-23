@@ -13,6 +13,7 @@ import {
   Excalidraw,
   loadFromBlob,
   serializeAsJSON,
+  useHandleLibrary,
 } from "@excalidraw/excalidraw";
 import type {
   AppState,
@@ -115,6 +116,8 @@ type Notice = {
 const EMPTY_FILE_NAME = "untitled.excalidraw";
 const THEME_STORAGE_KEY = "excalidraw-app.theme";
 const EXPANDED_DIRS_STORAGE_KEY = "excalidraw-app.expandedDirs";
+/** 供 libraries.excalidraw.com 安装素材库后跳回当前标签页 */
+const LIBRARY_WINDOW_NAME = "excalidraw-app";
 
 function getStoredExpandedDirs(): Set<string> {
   try {
@@ -198,6 +201,18 @@ export default function App() {
 
   const supported = isFileSystemAccessSupported();
   const resolvedTheme = themeMode === "system" ? systemTheme : themeMode;
+  const libraryReturnUrl = useMemo(
+    () => `${window.location.origin}${window.location.pathname}`,
+    [],
+  );
+
+  useEffect(() => {
+    if (!window.name) {
+      window.name = LIBRARY_WINDOW_NAME;
+    }
+  }, []);
+
+  useHandleLibrary({ excalidrawAPI: api });
 
   const currentTitle = currentFile?.name ?? EMPTY_FILE_NAME;
   const saveStatusText = !currentFile
@@ -1077,6 +1092,7 @@ export default function App() {
             name={currentTitle.replace(/\.excalidraw$/, "")}
             langCode={lang}
             theme={resolvedTheme}
+            libraryReturnUrl={libraryReturnUrl}
             UIOptions={{
               canvasActions: {
                 loadScene: false,
