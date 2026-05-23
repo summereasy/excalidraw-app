@@ -176,7 +176,7 @@ export async function renameFileInDirectory(
 // --- IndexedDB 持久化 directory handle ---
 
 const IDB_DB_NAME = "excalidraw-app";
-const IDB_DB_VERSION = 2;
+const IDB_DB_VERSION = 3;
 const IDB_STORE_NAME = "handles";
 const IDB_KEY = "lastDirectory";
 
@@ -190,6 +190,9 @@ export function openIDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("draft")) {
         db.createObjectStore("draft");
+      }
+      if (!db.objectStoreNames.contains("library")) {
+        db.createObjectStore("library");
       }
     };
     request.onsuccess = () => resolve(request.result);

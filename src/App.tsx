@@ -18,6 +18,7 @@ import type {
   AppState,
   BinaryFiles,
   ExcalidrawImperativeAPI,
+  LibraryItems,
 } from "@excalidraw/excalidraw/types";
 
 import {
@@ -92,7 +93,15 @@ import {
   saveDraftScene,
 } from "./scene-storage";
 import type { DraftScene } from "./scene-storage";
+import { loadPersistedLibrary, saveLibrary } from "./library-storage";
 import { type AppLang, getStoredLang, persistLang, t } from "./i18n";
+
+type InitialExcalidrawData = {
+  elements?: DraftScene["elements"];
+  appState?: DraftScene["appState"];
+  files?: DraftScene["files"];
+  libraryItems?: LibraryItems;
+};
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 type ThemeMode = "light" | "dark" | "system";
@@ -155,16 +164,33 @@ export default function App() {
   const [renameValue, setRenameValue] = useState("");
   const [lang, setLang] = useState<AppLang>(() => getStoredLang());
 
-  // 启动时从 IndexedDB 加载 draft scene 作为 initialData
-  const [initialData, setInitialData] = useState<
-    Promise<DraftScene | null> | null
-  >(() => loadDraftScene());
+  // 启动时从 IndexedDB 加载 draft scene 与素材库作为 initialData
+  const [initialData] = useState<Promise<InitialExcalidrawData | null>>(() =>
+    Promise.all([loadDraftScene(), loadPersistedLibrary()]).then(
+      ([draft, libraryItems]) => {
+        if (!draft && !libraryItems) {
+          return null;
+        }
+        return {
+          ...(draft
+            ? {
+                elements: draft.elements,
+                appState: draft.appState,
+                files: draft.files,
+              }
+            : {}),
+          ...(libraryItems ? { libraryItems } : {}),
+        };
+      },
+    ),
+  );
 
   // 用 ref 跟踪 currentFile，避免 onChange 闭包里拿到旧值
   const currentFileRef = useRef<DrawingEntry | null>(null);
   const cleanSceneJSONRef = useRef<string | null>(null);
   const latestSceneJSONRef = useRef<string | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const librarySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAutosaveRef = useRef<{
     snapshot: string;
     file: DrawingEntry;
@@ -327,6 +353,15 @@ export default function App() {
     await saveSceneSnapshot(pending.snapshot, pending.file);
   }, [saveSceneSnapshot]);
 
+  const schedulePersistLibrary = useCallback((libraryItems: LibraryItems) => {
+    if (librarySaveTimerRef.current) {
+      clearTimeout(librarySaveTimerRef.current);
+    }
+    librarySaveTimerRef.current = setTimeout(() => {
+      void saveLibrary(libraryItems);
+    }, 300);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (autosaveTimerRef.current) {
@@ -334,6 +369,9 @@ export default function App() {
       }
       if (draftTimerRef.current) {
         clearTimeout(draftTimerRef.current);
+      }
+      if (librarySaveTimerRef.current) {
+        clearTimeout(librarySaveTimerRef.current);
       }
     };
   }, []);
@@ -1009,19 +1047,17 @@ export default function App() {
         <section className="canvas-wrap">
           <Excalidraw
             excalidrawAPI={setApi}
-            initialData={
-              initialData
-                ? initialData.then((draft) =>
-                    draft
-                      ? {
-                          elements: draft.elements as any,
-                          appState: draft.appState,
-                          files: draft.files,
-                        }
-                      : null,
-                  )
-                : undefined
-            }
+            initialData={initialData.then((data) =>
+              data
+                ? {
+                    elements: data.elements as any,
+                    appState: data.appState,
+                    files: data.files,
+                    libraryItems: data.libraryItems,
+                  }
+                : null,
+            )}
+            onLibraryChange={schedulePersistLibrary}
             onChange={(elements, appState, files) => {
               if (api) {
                 const snapshot = serializeAsJSON(elements, appState, files, "local");
