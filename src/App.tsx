@@ -27,6 +27,9 @@ import {
   isFileSystemAccessSupported,
   listDrawingFiles,
   loadDirectoryHandle,
+  MoveFileError,
+  moveFileToDirectory,
+  getParentDirectoryPath,
   persistDirectoryHandle,
   pickDrawingDirectory,
   queryDirectoryPermission,
@@ -116,6 +119,7 @@ type Notice = {
 const EMPTY_FILE_NAME = "untitled.excalidraw";
 const THEME_STORAGE_KEY = "excalidraw-app.theme";
 const EXPANDED_DIRS_STORAGE_KEY = "excalidraw-app.expandedDirs";
+const ROOT_DIRECTORY_PATH = "";
 /** 供 libraries.excalidraw.com 安装素材库后跳回当前标签页 */
 const LIBRARY_WINDOW_NAME = "excalidraw-app";
 
@@ -147,6 +151,10 @@ function getAncestorDirectoryPaths(relativePath: string): string[] {
     paths.push(path);
   }
   return paths;
+}
+
+function isInsideSubfolder(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(".file-tree__dir") !== null;
 }
 
 export default function App() {
@@ -226,6 +234,8 @@ export default function App() {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() =>
     getStoredExpandedDirs(),
   );
+  const [draggingFilePath, setDraggingFilePath] = useState<string | null>(null);
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
 
   const fileTree = useMemo(() => buildFileTree(files), [files]);
 
@@ -674,6 +684,183 @@ export default function App() {
     }
   }, [api, currentFile, directory, renameValue, persistDraft]);
 
+  const canDropFileOnFolder = useCallback(
+    (fileRelativePath: string, folderPath: string) => {
+      return getParentDirectoryPath(fileRelativePath) !== folderPath;
+    },
+    [],
+  );
+
+  const moveFileToFolder = useCallback(
+    async (entry: DrawingEntry, targetDirectoryPath: string) => {
+      if (!directory) {
+        return;
+      }
+
+      if (!canDropFileOnFolder(entry.relativePath, targetDirectoryPath)) {
+        return;
+      }
+
+      try {
+        const moved = await moveFileToDirectory(
+          directory,
+          entry,
+          targetDirectoryPath,
+        );
+
+        setFiles((prev) =>
+          prev.map((file) =>
+            file.relativePath === entry.relativePath ? moved : file,
+          ),
+        );
+
+        if (currentFileRef.current?.relativePath === entry.relativePath) {
+          currentFileRef.current = moved;
+          setCurrentFile(moved);
+          if (api) {
+            persistDraft(
+              api.getSceneElementsIncludingDeleted(),
+              api.getAppState(),
+              api.getFiles(),
+            );
+          }
+        }
+
+        setExpandedDirs((prev) => {
+          const next = new Set(prev);
+          if (targetDirectoryPath) {
+            for (const path of getAncestorDirectoryPaths(targetDirectoryPath)) {
+              next.add(path);
+            }
+            next.add(targetDirectoryPath);
+          }
+          return next;
+        });
+      } catch (error) {
+        if (error instanceof MoveFileError) {
+          if (error.code === "same-folder") {
+            return;
+          }
+          if (error.code === "file-exists") {
+            setNotice({
+              kind: "error",
+              message: t(lang, "error.moveExists"),
+            });
+            return;
+          }
+        }
+        setNotice({ kind: "error", message: t(lang, "error.moveFail") });
+      }
+    },
+    [api, canDropFileOnFolder, directory, lang, persistDraft],
+  );
+
+  const clearFileDragState = useCallback(() => {
+    setDraggingFilePath(null);
+    setDropTargetPath(null);
+  }, []);
+
+  const handleFileDragStart = useCallback(
+    (entry: DrawingEntry, event: React.DragEvent<HTMLButtonElement>) => {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", entry.relativePath);
+      setDraggingFilePath(entry.relativePath);
+      setDropTargetPath(null);
+    },
+    [],
+  );
+
+  const handleDirectoryDragOver = useCallback(
+    (directoryPath: string, event: React.DragEvent<HTMLElement>) => {
+      if (!draggingFilePath) {
+        return;
+      }
+
+      event.stopPropagation();
+
+      if (canDropFileOnFolder(draggingFilePath, directoryPath)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        setDropTargetPath(directoryPath);
+        return;
+      }
+
+      setDropTargetPath((current) =>
+        current === ROOT_DIRECTORY_PATH ? null : current,
+      );
+    },
+    [canDropFileOnFolder, draggingFilePath],
+  );
+
+  const handleDirectoryDrop = useCallback(
+    (directoryPath: string, event: React.DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const filePath =
+        draggingFilePath ?? event.dataTransfer.getData("text/plain");
+      clearFileDragState();
+
+      if (!filePath || !canDropFileOnFolder(filePath, directoryPath)) {
+        return;
+      }
+
+      const entry = files.find((file) => file.relativePath === filePath);
+      if (!entry) {
+        return;
+      }
+
+      void moveFileToFolder(entry, directoryPath);
+    },
+    [
+      canDropFileOnFolder,
+      clearFileDragState,
+      draggingFilePath,
+      files,
+      moveFileToFolder,
+    ],
+  );
+
+  const handleRootZoneDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (
+        !draggingFilePath ||
+        !canDropFileOnFolder(draggingFilePath, ROOT_DIRECTORY_PATH) ||
+        isInsideSubfolder(event.target)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move";
+      setDropTargetPath(ROOT_DIRECTORY_PATH);
+    },
+    [canDropFileOnFolder, draggingFilePath],
+  );
+
+  const handleRootZoneDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (isInsideSubfolder(event.target)) {
+        return;
+      }
+
+      void handleDirectoryDrop(ROOT_DIRECTORY_PATH, event);
+    },
+    [handleDirectoryDrop],
+  );
+
+  const handleRootZoneDragLeave = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+        setDropTargetPath((current) =>
+          current === ROOT_DIRECTORY_PATH ? null : current,
+        );
+      }
+    },
+    [],
+  );
+
   // --- 键盘快捷键 ---
 
   useEffect(() => {
@@ -812,8 +999,29 @@ export default function App() {
   const renderTreeNode = (node: FileTreeNode): React.ReactNode => {
     if (node.kind === "directory") {
       const isOpen = expandedDirs.has(node.path);
+      const isDropTarget =
+        dropTargetPath === node.path &&
+        draggingFilePath !== null &&
+        canDropFileOnFolder(draggingFilePath, node.path);
       return (
-        <li key={node.path} className="file-tree__dir">
+        <li
+          key={node.path}
+          className={
+            isDropTarget
+              ? "file-tree__dir file-tree__dir--drop-target"
+              : "file-tree__dir"
+          }
+          onDragOver={(event) => handleDirectoryDragOver(node.path, event)}
+          onDragEnter={(event) => handleDirectoryDragOver(node.path, event)}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+              setDropTargetPath((current) =>
+                current === node.path ? null : current,
+              );
+            }
+          }}
+          onDrop={(event) => handleDirectoryDrop(node.path, event)}
+        >
           <button
             className="file-tree__dir-toggle"
             onClick={() => toggleDir(node.path)}
@@ -834,14 +1042,21 @@ export default function App() {
     }
 
     const isActive = node.entry.relativePath === currentFile?.relativePath;
+    const isDragging = draggingFilePath === node.entry.relativePath;
+    const itemClassName = [
+      "file-tree__item",
+      isActive && "file-tree__item--active",
+      isDragging && "file-tree__item--dragging",
+    ]
+      .filter(Boolean)
+      .join(" ");
     return (
       <li key={node.entry.relativePath}>
         <button
-          className={
-            isActive
-              ? "file-tree__item file-tree__item--active"
-              : "file-tree__item"
-          }
+          className={itemClassName}
+          draggable
+          onDragStart={(event) => handleFileDragStart(node.entry, event)}
+          onDragEnd={clearFileDragState}
           onClick={() => void loadDrawing(node.entry)}
         >
           <svg className="file-tree__icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -850,6 +1065,11 @@ export default function App() {
       </li>
     );
   };
+
+  const isRootDropTarget =
+    dropTargetPath === ROOT_DIRECTORY_PATH &&
+    draggingFilePath !== null &&
+    canDropFileOnFolder(draggingFilePath, ROOT_DIRECTORY_PATH);
 
   return (
     <div
@@ -913,13 +1133,33 @@ export default function App() {
           </div>
         )}
 
-        <div className="file-tree">
+        <div
+          className={
+            draggingFilePath ? "file-tree file-tree--dragging" : "file-tree"
+          }
+        >
           {files.length === 0 ? (
             <div className="empty-state">{t(lang, "dir.empty")}</div>
           ) : (
-            <ul className="file-tree__list">
-              {fileTree.map((node) => renderTreeNode(node))}
-            </ul>
+            <div
+              className={
+                isRootDropTarget
+                  ? "file-tree__root-zone file-tree__root-zone--drop-target"
+                  : "file-tree__root-zone"
+              }
+              onDragOver={handleRootZoneDragOver}
+              onDragEnter={handleRootZoneDragOver}
+              onDragLeave={handleRootZoneDragLeave}
+              onDrop={handleRootZoneDrop}
+            >
+              <ul className="file-tree__list file-tree__list--root">
+                {fileTree.map((node) => renderTreeNode(node))}
+              </ul>
+              {draggingFilePath &&
+                canDropFileOnFolder(draggingFilePath, ROOT_DIRECTORY_PATH) && (
+                  <div className="file-tree__root-drop-pad" />
+                )}
+            </div>
           )}
         </div>
       </aside>

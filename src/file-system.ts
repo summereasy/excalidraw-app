@@ -153,6 +153,70 @@ export async function resolveParentDir(
   return dir;
 }
 
+export function getParentDirectoryPath(relativePath: string): string {
+  const index = relativePath.lastIndexOf("/");
+  return index === -1 ? "" : relativePath.slice(0, index);
+}
+
+export async function getDirectoryByRelativePath(
+  root: FileSystemDirectoryHandle,
+  relativePath: string,
+): Promise<FileSystemDirectoryHandle> {
+  if (!relativePath) {
+    return root;
+  }
+
+  let dir = root;
+  for (const part of relativePath.split("/")) {
+    dir = await dir.getDirectoryHandle(part);
+  }
+  return dir;
+}
+
+export class MoveFileError extends Error {
+  constructor(public readonly code: "same-folder" | "file-exists") {
+    super(code);
+    this.name = "MoveFileError";
+  }
+}
+
+export async function moveFileToDirectory(
+  root: FileSystemDirectoryHandle,
+  entry: DrawingEntry,
+  targetDirectoryPath: string,
+): Promise<DrawingEntry> {
+  const sourceParentPath = getParentDirectoryPath(entry.relativePath);
+  if (sourceParentPath === targetDirectoryPath) {
+    throw new MoveFileError("same-folder");
+  }
+
+  const sourceParentDir = await getDirectoryByRelativePath(root, sourceParentPath);
+  const targetDir = await getDirectoryByRelativePath(root, targetDirectoryPath);
+
+  try {
+    await targetDir.getFileHandle(entry.name);
+    throw new MoveFileError("file-exists");
+  } catch (error) {
+    if (error instanceof MoveFileError) {
+      throw error;
+    }
+    if ((error as DOMException).name !== "NotFoundError") {
+      throw error;
+    }
+  }
+
+  const content = await readFileText(entry.handle);
+  const newHandle = await targetDir.getFileHandle(entry.name, { create: true });
+  await writeFileText(newHandle, content);
+  await sourceParentDir.removeEntry(entry.handle.name);
+
+  const newRelativePath = targetDirectoryPath
+    ? `${targetDirectoryPath}/${entry.name}`
+    : entry.name;
+
+  return createDrawingEntry(newHandle, newRelativePath, targetDir);
+}
+
 export async function renameFileInDirectory(
   parentDir: FileSystemDirectoryHandle,
   oldHandle: FileSystemFileHandle,

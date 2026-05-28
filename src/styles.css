@@ -203,11 +203,37 @@ button {
   min-height: 0;
 }
 
+.file-tree--dragging .file-tree__item:not(.file-tree__item--dragging),
+.file-tree--dragging .file-tree__dir-toggle {
+  pointer-events: none;
+}
+
 .file-tree {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1;
   overflow: auto;
   padding: 4px 10px 14px;
+}
+
+.file-tree__root-zone {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 8px;
+  transition: background 120ms, box-shadow 120ms;
+}
+
+.file-tree__root-zone--drop-target {
+  background: var(--item-active-bg);
+  box-shadow: inset 0 0 0 1px var(--item-active-border);
+}
+
+.file-tree__root-drop-pad {
+  flex: 1;
+  min-height: 56px;
 }
 
 .file-tree__list {
@@ -234,6 +260,13 @@ button {
 
 .file-tree__dir {
   margin: 1px 0;
+  border-radius: 8px;
+  transition: background 120ms, box-shadow 120ms;
+}
+
+.file-tree__dir--drop-target {
+  background: var(--item-active-bg);
+  box-shadow: inset 0 0 0 1px var(--item-active-border);
 }
 
 .file-tree__dir-toggle {
@@ -285,8 +318,16 @@ button {
   border-radius: 7px;
   background: transparent;
   color: var(--text-main);
-  cursor: pointer;
+  cursor: grab;
   text-align: left;
+}
+
+.file-tree__item:active {
+  cursor: grabbing;
+}
+
+.file-tree__item--dragging {
+  opacity: 0.45;
 }
 
 .file-tree__icon {

@@ -37,6 +37,8 @@ const translations: Record<AppLang, Record<string, string>> = {
     "error.saveFail": "Save failed — check file write permissions",
     "error.saveAsFail": "Save As failed",
     "error.renameFail": "Rename failed",
+    "error.moveFail": "Move failed — check folder write permissions",
+    "error.moveExists": "A file with the same name already exists in that folder",
     // theme
     "theme.light": "Light",
     "theme.dark": "Dark",
@@ -65,6 +67,8 @@ const translations: Record<AppLang, Record<string, string>> = {
     "error.saveFail": "保存失败，请检查文件写入权限",
     "error.saveAsFail": "另存为失败",
     "error.renameFail": "重命名失败",
+    "error.moveFail": "移动失败，请检查文件夹写入权限",
+    "error.moveExists": "目标文件夹中已有同名文件",
     "theme.light": "浅色",
     "theme.dark": "深色",
     "theme.system": "系统",
