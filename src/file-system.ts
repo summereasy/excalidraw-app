@@ -135,6 +135,10 @@ function ensureDrawingExtension(name: string): string {
   return name.endsWith(".excalidraw") ? name : `${name}.excalidraw`;
 }
 
+export function getDrawingDisplayName(fileName: string): string {
+  return fileName.replace(/\.excalidraw$/, "");
+}
+
 /**
  * 从根目录逐级 getDirectoryHandle 到 relativePath 的父目录，
  * 确保返回的 handle 拥有与根目录一致的 readwrite 权限。

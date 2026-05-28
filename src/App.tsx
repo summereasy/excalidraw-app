@@ -24,6 +24,7 @@ import type {
 
 import {
   createDrawingEntry,
+  getDrawingDisplayName,
   isFileSystemAccessSupported,
   listDrawingFiles,
   loadDirectoryHandle,
@@ -1060,7 +1061,9 @@ export default function App() {
           onClick={() => void loadDrawing(node.entry)}
         >
           <svg className="file-tree__icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span className="file-tree__item-name">{node.entry.name}</span>
+          <span className="file-tree__item-name">
+            {getDrawingDisplayName(node.entry.name)}
+          </span>
         </button>
       </li>
     );
